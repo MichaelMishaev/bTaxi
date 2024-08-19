@@ -2,6 +2,7 @@
 using BL.Services.Drivers;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using StackExchange.Redis;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -18,8 +19,33 @@ using telegramB.ErrorHandle;
 
 namespace telegramB
 {
+
     public class starter
     {
+        private void testRedis()
+        {
+            var redis = ConnectionMultiplexer.Connect("10.0.2.15:6379");
+            var db = redis.GetDatabase();
+
+            // Example: Setting a key-value pair
+            db.StringSet("key", "value");
+
+            // Example: Getting the value
+            string value = db.StringGet("key");
+            Console.WriteLine(value);
+        }
+
+        // Set a value in Redis
+        //db.StringSet("myKey", "myValue");
+
+        //// Get the value from Redis
+        //string value = db.StringGet("myKey");
+
+        //Console.WriteLine($"Value retrieved from Redis: {value}");
+
+        //redis.Close();
+
+       
         private const string UserChatIdsFilePath = "userChatIds.json"; // Path to save the file
         private Timer _saveTimer;
         HandleUserUpdateService _handleUpdate;
@@ -29,6 +55,7 @@ namespace telegramB
 
         public starter()
         {
+  
         }
 
         public starter(HandleUserUpdateService handleUpdate, HandleError handleError)
