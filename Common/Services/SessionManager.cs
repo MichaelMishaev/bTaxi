@@ -1,83 +1,69 @@
 ﻿using Newtonsoft.Json;
 using System;
-using System.Collections.Generic;
-using System.Text;
+using System.Threading.Tasks;
 
 namespace Common.Services
 {
-    //############### comments: Added a SessionManager class with a focus on session management
-    public static class SessionManager
+    public class SessionManager
     {
-        private static readonly ISessionStorage _sessionStorage = new InMemorySessionStorage(); //############### comments: Added a default session storage implementation
+        private readonly RedisCache _cache;
 
-        //############### comments: Made method static to access the storage interface
-        public static void SetSessionData<T>(long userId, string key, T data)
+        public SessionManager(string redisConnectionString)
         {
-            var sessionKey = GenerateSessionKey(userId, key);
-            var jsonData = JsonConvert.SerializeObject(data);
-            _sessionStorage.Set(sessionKey, jsonData);
+            _cache = new RedisCache(redisConnectionString);
         }
 
-        //############### comments: Added method to set driver-to-client mapping
-        public static void SetDriverToClientMapping(long driverId, long clientChatId, long bidId)
-        {
-            SetSessionData(driverId, $"ClientChatId_{bidId}", clientChatId);
-        }
-
-        //############### comments: Added method to get client chat ID for driver
-        public static long? GetClientChatIdForDriver(long driverId, long bidId)
-        {
-            return GetSessionData<long?>(driverId, $"ClientChatId_{bidId}");
-        }
-
-        //############### comments: Made method static to access the storage interface
-        public static T GetSessionData<T>(long userId, string key)
-        {
-            var sessionKey = GenerateSessionKey(userId, key);
-            var jsonData = _sessionStorage.Get(sessionKey);
-            return jsonData == null ? default(T) : JsonConvert.DeserializeObject<T>(jsonData);
-        }
-
-        //############### comments: Made method static to access the storage interface
-        public static void RemoveSessionData(long userId, string key)
-        {
-            var sessionKey = GenerateSessionKey(userId, key);
-            _sessionStorage.Remove(sessionKey);
-        }
-
-        private static string GenerateSessionKey(long userId, string key)
+        private string GenerateSessionKey(long userId, string key)
         {
             return $"{userId}:{key}";
         }
-    }
 
-    //############### comments: Created interface for session storage
-    public interface ISessionStorage
-    {
-        void Set(string key, string value);
-        string Get(string key);
-        void Remove(string key);
-    }
-
-    //############### comments: Created in-memory implementation of session storage
-    public class InMemorySessionStorage : ISessionStorage
-    {
-        private readonly Dictionary<string, string> _sessionData = new Dictionary<string, string>();
-
-        public void Set(string key, string value)
+        public async Task SetSessionData<T>(string sessionKey, string key, T data)
         {
-            _sessionData[key] = value;
+            string composedKey = $"{sessionKey}:{key}";
+            await _cache.SetAsync(composedKey, data, TimeSpan.FromHours(1));
         }
 
-        public string Get(string key)
+        public async Task<T> GetSessionData<T>(string sessionKey, string key)
         {
-            _sessionData.TryGetValue(key, out var value);
-            return value;
+            string composedKey = $"{sessionKey}:{key}";
+            return await _cache.GetAsync<T>(composedKey);
         }
 
-        public void Remove(string key)
+        public async Task RemoveSessionData(string sessionKey, string key)
         {
-            _sessionData.Remove(key);
+            string composedKey = $"{sessionKey}:{key}";
+            await _cache.RemoveAsync(composedKey);
+        }
+
+        public async Task RemoveSessionData(long userId, string key)
+        {
+            string sessionKey = GenerateSessionKey(userId, key);
+            await _cache.RemoveAsync(sessionKey);
+        }
+
+        public async Task SetSessionData<T>(long userId, string key, T data)
+        {
+            string sessionKey = GenerateSessionKey(userId, key);
+            await _cache.SetAsync(sessionKey, data, TimeSpan.FromHours(1));
+        }
+
+        public async Task<T> GetSessionData<T>(long userId, string key)
+        {
+            string sessionKey = GenerateSessionKey(userId, key);
+            return await _cache.GetAsync<T>(sessionKey);
+        }
+
+        public async Task SetDriverToClientMapping(long driverId, long clientChatId, long bidId)
+        {
+            string sessionKey = GenerateSessionKey(driverId, $"ClientChatId_{bidId}");
+            await _cache.SetAsync(sessionKey, clientChatId, TimeSpan.FromHours(1));
+        }
+
+        public async Task<long?> GetClientChatIdForDriver(long driverId, long bidId)
+        {
+            string sessionKey = $"{driverId}:ClientChatId_{bidId}";
+            return await GetSessionData<long?>(sessionKey, $"ClientChatId_{bidId}");
         }
     }
 }

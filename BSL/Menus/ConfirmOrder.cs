@@ -17,8 +17,8 @@ namespace BL.Menus
 
             // Display the order summary with the bid amount
             string orderSummary = $"סיכום ההזמנה שלך:\n" +
-                                  $"נקודת איסוף: {userOrder.FromAddress}\n" +
-                                  $"יעד: {userOrder.ToAddress}\n" +
+                                  $"נקודת איסוף: {userOrder.FromAddress.GetFormattedAddress()}\n" +
+                                  $"יעד: {userOrder.ToAddress.GetFormattedAddress()}\n" +
                                   $"מספר טלפון: {userOrder.PhoneNumber}\n" +
                                   $"הערות: {userOrder.Remarks}\n" +
                                   $"הצעת מחיר: {userOrder.BidAmount:F2} ₪";

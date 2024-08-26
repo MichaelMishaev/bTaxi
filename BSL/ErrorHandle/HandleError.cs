@@ -43,8 +43,9 @@ namespace telegramB.ErrorHandle
                 }
                 else
                 {
-                    // Handle other types of exceptions
+                    Console.ForegroundColor = ConsoleColor.Blue;
                     Console.WriteLine("An unexpected error occurred. Continuing operation...");
+                    Console.ResetColor();
                 }
             }
             catch (Exception ex)

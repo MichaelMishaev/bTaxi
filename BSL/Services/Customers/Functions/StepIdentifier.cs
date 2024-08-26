@@ -17,7 +17,12 @@ namespace BL.Services.Customers.Functions
 {
     public static class StepIdentifier
     {
-        public static async Task UserLogic(long chatId, string input, CancellationToken cancellationToken, ITelegramBotClient botClient, UserOrder userOrder, string userState, Message message, GetAddressFromLocationService _getAddressFromLocation, bool isDriver = false)
+        private static readonly SessionManager _sessionManager;
+        static StepIdentifier()
+        {
+            _sessionManager = new SessionManager("localhost:6379");
+        }
+        public static async Task UserLogic(long chatId, string input, CancellationToken cancellationToken, ITelegramBotClient botClient, UserOrder userOrder, string userState, Message message, GetAddressFromLocationService _getAddressFromLocation = null, bool isDriver = false)
         {
             OrderRepository _orderRepository = new OrderRepository();
             DriverRepository _driverRepository = new DriverRepository();
@@ -103,23 +108,18 @@ namespace BL.Services.Customers.Functions
 
                     var address = message.Type == MessageType.Location
                         ? await _getAddressFromLocation.GetAddressFromLocationAsync(message.Location.Latitude, message.Location.Longitude)
-                        : ParseAddress(input);
+                        : await GetAddressOrPromptUser(input, botClient, chatId, cancellationToken);
 
                     userOrder.PendingAddress = address;
                     userOrder.CurrentStep = "from_confirm";
                 }
                 else
                 {
-                    if (message.Type == MessageType.Location)
-                    {
-                        var address = await _getAddressFromLocation.GetAddressFromLocationAsync(message.Location.Latitude, message.Location.Longitude);
-                        userOrder.FromAddress = address;
-                    }
-                    else
-                    {
-                        userOrder.FromAddress = ParseAddress(input);
-                    }
+                    var address = message.Type == MessageType.Location
+                        ? await _getAddressFromLocation.GetAddressFromLocationAsync(message.Location.Latitude, message.Location.Longitude)
+                        : await GetAddressOrPromptUser(input, botClient, chatId, cancellationToken);
 
+                    userOrder.FromAddress = address;
                     await botClient.SendTextMessageAsync(
                         chatId: chatId,
                         text: $"נקודת איסוף {userOrder.FromAddress.GetFormattedAddress()} נשמרה. אנא בחר באפשרות הבאה.",
@@ -185,6 +185,20 @@ namespace BL.Services.Customers.Functions
             }
         }
 
+        private static async Task<AddressDTO> GetAddressOrPromptUser(string input, ITelegramBotClient botClient, long chatId, CancellationToken cancellationToken)
+        {
+            var address = ParseAddress(input);
+            if (address == null)
+            {
+                await botClient.SendTextMessageAsync(
+                    chatId: chatId,
+                    text: "הכתובת שהוזנה לא נמצאה. אנא הזן כתובת ידנית:",
+                    cancellationToken: cancellationToken
+                );
+                // Here, you can handle retrying by setting a flag or step in the user state to prompt for manual address input
+            }
+            return address;
+        }
         private static AddressDTO ParseAddress(string input)
         {
             // Implement your parsing logic here to convert the input string into an AddressDTO
@@ -415,7 +429,7 @@ namespace BL.Services.Customers.Functions
             {
                 var customerId = long.Parse(extraData);
 
-                await _orderRepository.InsertCustomerBidAsync(chatId, customerId, newCustomerBid);
+                await _orderRepository.InsertAndThenUpdateCustomerBidAsync(chatId, customerId, newCustomerBid);
 
                 await botClient.SendTextMessageAsync(
                     chatId: chatId,
@@ -426,6 +440,7 @@ namespace BL.Services.Customers.Functions
                 var workingDrivers = await _driverRepository.GetWorkingDriversAsync();
                 foreach (var driver in workingDrivers)
                 {
+                    Console.WriteLine($"Message sent to: {workingDrivers.Count} drivers");
                     long driverChatId = Convert.ToInt64(driver.DriverId);
 
                     var orderActionsMenu = MenuMethods.orderActionsMenu(chatId);
@@ -442,8 +457,8 @@ namespace BL.Services.Customers.Functions
                 userOrder.CurrentStep = "awaiting_confirmation";
                 userState = "awaiting_confirmation";
 
-                SessionManager.SetSessionData(chatId, "UserOrder", userOrder); //**********************************
-                SessionManager.SetSessionData(chatId, "UserState", userState); //**********************************
+                await _sessionManager.SetSessionData(chatId, "UserOrder", userOrder); //**********************************
+                await _sessionManager.SetSessionData(chatId, "UserState", userState); //**********************************
             }
             else
             {
@@ -485,8 +500,8 @@ namespace BL.Services.Customers.Functions
                 userState = $"awaiting_driver_bid:{parentId}";
 
                 // Save session data
-                SessionManager.SetSessionData(chatId, "UserOrder", userOrder); //**********************************
-                SessionManager.SetSessionData(chatId, "UserState", userState); //**********************************
+                await _sessionManager.SetSessionData(chatId, "UserOrder", userOrder); //**********************************
+                await _sessionManager.SetSessionData(chatId, "UserState", userState); //**********************************
             }
             else
             {

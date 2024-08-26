@@ -2,6 +2,7 @@
 using BL.Services.Customers.Handlers;
 using Common.Services;
 using DAL;
+using Microsoft.Extensions.DependencyInjection;
 using System;
 using System.Collections.Generic;
 using System.Text;
@@ -13,15 +14,23 @@ using Telegram.Bot.Types.Enums;
 using telegramB.Menus;
 using telegramB.Objects;
 
+
+
 namespace BL.Services.Customers.Functions
 {
     public class UpdateTypeMessage
     {
-
-        public static async Task function(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken, UserMenuHandle _handleUser)
+        private readonly SessionManager _sessionManager;
+        public UpdateTypeMessage(SessionManager sessionManager)
         {
+              _sessionManager = sessionManager;
+        }
+
+        public  async Task function(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken, UserMenuHandle _handleUser, IServiceProvider services)
+        {
+            //SessionManager sessionManager = new SessionManager(redisConnectionString);
             var message = update.Message;
-            DummyOrder dummyOrder = new DummyOrder();
+            var dummyOrder = services.GetRequiredService<DummyOrder>();
             OrderRepository orderRepository = new OrderRepository();
            
 
@@ -32,29 +41,36 @@ namespace BL.Services.Customers.Functions
 
                 if (messageText == "/start")
                 {
+                    await _sessionManager.RemoveSessionData(chatId, "UserState");
+                    await _sessionManager.RemoveSessionData(chatId, "UserOrder");
+                    await _sessionManager.RemoveSessionData(chatId, "DriverUserState");
                     var mainMenuButtons = MenuMethods.mainMenuButtons();
 
-                    await botClient.SendTextMessageAsync(
-                        chatId: chatId,
-                        text: "Welcome! Choose an option:",
-                        replyMarkup: mainMenuButtons,
-                        cancellationToken: cancellationToken
-                    );
+                    await MainMenuService.DisplayMainMenu(botClient, chatId, cancellationToken);
+                    //await botClient.SendTextMessageAsync(
+                    //    chatId: chatId,
+                    //    text: "ברוכים הבאים! אנא בחר:",
+                    //    replyMarkup: mainMenuButtons,
+                    //    cancellationToken: cancellationToken
+                    //);
                 }
                 else if (messageText == "/test")
                 {
                     var dummyOrderres = await dummyOrder.CreateDummyOrderAsync(chatId, botClient, cancellationToken);
-                    SessionManager.SetSessionData(chatId, "UserOrder", dummyOrderres); // Save session data
+                    await _sessionManager.SetSessionData(chatId, "UserOrder", dummyOrderres); // Save session data
                 }
                 else if (messageText == "/test2")
                 {
+                    await _sessionManager.RemoveSessionData(chatId, "UserState");
+                    await _sessionManager.RemoveSessionData(chatId, "UserOrder");
+                    await _sessionManager.RemoveSessionData(chatId, "DriverUserState");
                     await dummyOrder.AddDummyAddressesAsync(chatId, botClient, cancellationToken);
-                    SessionManager.SetSessionData(chatId, "UserOrder", SessionManager.GetSessionData<UserOrder>(chatId, "UserOrder")); // Save session data
+                    await _sessionManager.SetSessionData(chatId, "UserOrder", await _sessionManager.GetSessionData<UserOrder>(chatId, "UserOrder")); // Save session data
                 }
                 else
                 {
-                    var userState = SessionManager.GetSessionData<string>(chatId, "UserState");
-                    var userOrder = SessionManager.GetSessionData<UserOrder>(chatId, "UserOrder");
+                    var userState = await _sessionManager.GetSessionData<string>(chatId, "UserState");
+                    var userOrder = await _sessionManager.GetSessionData<UserOrder>(chatId, "UserOrder");
 
                     if (userState != null && userState == "awaiting_bid")
                     {
@@ -63,7 +79,7 @@ namespace BL.Services.Customers.Functions
                             userOrder.BidAmount = bidAmount;
 
                             // Insert the customer bid into the bids table and get the bidId
-                            long bidId = await orderRepository.InsertCustomerBidAsync(chatId, chatId, bidAmount);
+                            long bidId = await orderRepository.InsertAndThenUpdateCustomerBidAsync(chatId, chatId, bidAmount);
 
                             // Update the bidId in the userOrder
                             userOrder.BidId = bidId;
@@ -88,8 +104,8 @@ namespace BL.Services.Customers.Functions
                             );
 
                             userState = "awaiting_confirmation";
-                            SessionManager.SetSessionData(chatId, "UserOrder", userOrder); // Save session data
-                            SessionManager.SetSessionData(chatId, "UserState", userState); // Save session data
+                            await _sessionManager.SetSessionData(chatId, "UserOrder", userOrder); // Save session data
+                            await _sessionManager.SetSessionData(chatId, "UserState", userState); // Save session data
                         }
                         else
                         {
@@ -103,9 +119,6 @@ namespace BL.Services.Customers.Functions
                     else if (userOrder != null)
                     {
                         await  _handleUser.HandleUserInput(chatId, messageText, cancellationToken, botClient, userOrder, userState, message);
-
-                        SessionManager.SetSessionData(chatId, "UserOrder", userOrder); // Save session data
-                        SessionManager.SetSessionData(chatId, "UserState", userState); // Save session data
                     }
                     else
                     {
@@ -122,29 +135,11 @@ namespace BL.Services.Customers.Functions
 
 
 
-        public static async Task ResetSessionData(long chatId, CancellationToken cancellationToken, ITelegramBotClient botClient)
+        public  async Task ResetSessionData(long chatId, CancellationToken cancellationToken, ITelegramBotClient botClient)
         {
             // Reset session data
-            SessionManager.SetSessionData<UserOrder>(chatId, "UserOrder", null); // Specify the type argument
-            SessionManager.SetSessionData<string>(chatId, "UserState", null); // Specify the type argument
-
-
-            // Notify the user to start a new order
-            await botClient.SendTextMessageAsync(
-                chatId: chatId,
-                text: "No active state found. Please start a new order.",
-                cancellationToken: cancellationToken
-            );
-
-            // Provide instructions to start a new order
-            var startOrderButton = MenuMethods.mainMenuButtons();
-
-            await botClient.SendTextMessageAsync(
-                chatId: chatId,
-                text: "To start a new order, please click the button below.",
-                replyMarkup: startOrderButton,
-                cancellationToken: cancellationToken
-            );
+            await _sessionManager.SetSessionData<UserOrder>(chatId, "UserOrder", null); // Specify the type argument
+            await _sessionManager.SetSessionData<string>(chatId, "UserState", null); // Specify the type argument
         }
     }
 }

@@ -1,5 +1,8 @@
-﻿using Common.DTO;
+﻿using BL.Services.Drivers.StaticFiles;
+using Common.DTO;
+using Common.Services;
 using DAL;
+using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
@@ -12,96 +15,180 @@ namespace telegramB.Services
 {
     public static class BotDriversResponseService
     {
-        private static Dictionary<long, DriverDTO> driverRegistrations = new Dictionary<long, DriverDTO>();
-        private static Dictionary<long, string> userStates = new Dictionary<long, string>();
-        static DriverRepository driverRepository = new DriverRepository();
+        private static readonly Dictionary<long, DriverDTO> driverRegistrations = new Dictionary<long, DriverDTO>();
+        private static readonly Dictionary<long, string> userStates = new Dictionary<long, string>();
+        private static readonly DriverRepository driverRepository = new DriverRepository();
+        private static readonly SessionManager _sessionManager;
+
+
+        static BotDriversResponseService()
+        {
+            // Initialize SessionManager with your Redis connection string
+            _sessionManager = new SessionManager("localhost:6379");
+        }
+        // Encapsulate dictionary access
+        private static void AddOrUpdateDriverRegistration(long chatId, DriverDTO driver)
+        {
+            driverRegistrations[chatId] = driver;
+        }
+
+        private static DriverDTO GetDriverRegistration(long chatId)
+        {
+            return driverRegistrations.TryGetValue(chatId, out var driver) ? driver : null;
+        }
+
+        private static void RemoveDriverRegistration(long chatId)
+        {
+            driverRegistrations.Remove(chatId);
+        }
+
+        private static void SetUserState(long chatId, string state)
+        {
+            userStates[chatId] = state;
+        }
+
+        private static string GetUserState(long chatId)
+        {
+            return userStates.TryGetValue(chatId, out var state) ? state : null;
+        }
+
+        private static void RemoveUserState(long chatId)
+        {
+            userStates.Remove(chatId);
+        }
 
         public static async Task StartRegistration(ITelegramBotClient botClient, long chatId, int messageId, CancellationToken cancellationToken)
         {
-            driverRegistrations[chatId] = new DriverDTO();
-            userStates[chatId] = "awaiting_name";
+            Console.WriteLine($"Driver {chatId} started regestration");
+            AddOrUpdateDriverRegistration(chatId, new DriverDTO());
+            SetUserState(chatId, keywords.AwaitingNameState);
 
-            await botClient.EditMessageTextAsync(
+
+            await _sessionManager.SetSessionData(chatId, "DriverUserState", keywords.AwaitingNameState);
+
+            await botClient.SendTextMessageAsync(chatId: chatId, text: "ברוכים הבאים לתהליך הרישום בלה בלה אנחנו בלה בלה ---- TBD",cancellationToken: cancellationToken
+            );
+
+            await botClient.SendTextMessageAsync(
+                //EditMessageTextAsync(
                 chatId: chatId,
-                messageId: messageId,
+             //   messageId: messageId,
                 text: "מה השם המלא שלך?",
                 cancellationToken: cancellationToken
             );
         }
 
-        public static async Task HandleUserInput(ITelegramBotClient botClient, long chatId, string messageText, CancellationToken cancellationToken)
+        public static async Task HandleDriverInput(ITelegramBotClient botClient, long chatId, string messageText, CancellationToken cancellationToken)
         {
-            switch (userStates[chatId])
+            var currentState = GetUserState(chatId);
+            if (currentState == null)
             {
-                case "awaiting_name":
-                    driverRegistrations[chatId].FullName = messageText;
-                    await BotDriversResponseService.SendTextMessageAsync(botClient, chatId, "דגם וצבע הרכב? (כדי שהלקוח יזהה אותך, כן?)", cancellationToken);
-                    userStates[chatId] = "awaiting_car_details";
+                await HandleInvalidState(botClient, chatId, cancellationToken); // Handle missing state
+                return;
+            }
+
+            switch (currentState)
+            {
+                case keywords.AwaitingNameState:
+                    await HandleAwaitingNameInput(botClient, chatId, messageText, cancellationToken);
                     break;
 
-                case "awaiting_car_details":
-                    driverRegistrations[chatId].CarDetails = messageText;
-                    await BotDriversResponseService.SendTextMessageAsync(botClient, chatId, "מה מספר הטלפון שלך?", cancellationToken);
-                    userStates[chatId] = "awaiting_phone_number";
+                case keywords.AwaitingCarDetailsState:
+                    await HandleAwaitingCarDetailsInput(botClient, chatId, messageText, cancellationToken);
                     break;
 
-                case "awaiting_phone_number":
-                    driverRegistrations[chatId].PhoneNumber = messageText;
-                    await SendRegistrationSummary(botClient, chatId, cancellationToken);
+                case keywords.AwaitingPhoneNumberState:
+                    await HandleAwaitingPhoneNumberInput(botClient, chatId, messageText, cancellationToken);
                     break;
 
                 default:
-                    await BotDriversResponseService.SendTextMessageAsync(botClient, chatId, "משהו השתבש. אנא התחל מחדש עם /start", cancellationToken);
-                    userStates.Remove(chatId);
+                    await HandleInvalidState(botClient, chatId, cancellationToken); // Handle unknown state
                     break;
             }
+        }
+
+        private static async Task HandleInvalidState(ITelegramBotClient botClient, long chatId, CancellationToken cancellationToken)
+        {
+            await SendTextMessageAsync(botClient, chatId, "משהו השתבש. אנא התחל מחדש עם /start", cancellationToken);
+            RemoveUserState(chatId);
         }
 
         public static async Task SendRegistrationSummary(ITelegramBotClient botClient, long chatId, CancellationToken cancellationToken)
         {
-            var registration = driverRegistrations[chatId];
-            var summaryText = $"סיכום הרשמה:\n" +
-                              $"שם מלא: {registration.FullName}\n" +
-                              $"פרטי רכב: {registration.CarDetails}\n" +
-                              $"מספר טלפון: {registration.PhoneNumber}\n\n" +
-                              "האם כל הפרטים נכונים?";
+            var registration = GetDriverRegistration(chatId);
+            if (registration == null) return;
 
-            await BotDriversResponseService.SendRegistrationSummaryAsync(botClient, chatId, summaryText, cancellationToken);
+            var summaryText = GenerateRegistrationSummaryText(registration); // Moved summary generation to a helper method
 
-            userStates[chatId] = "awaiting_confirmation";
+            await SendRegistrationSummaryAsync(botClient, chatId, summaryText, cancellationToken);
+            SetUserState(chatId, keywords.AwaitingConfirmationState); // Use constant for state
         }
 
+        private static string GenerateRegistrationSummaryText(DriverDTO registration)
+        {
+            return $"סיכום הרשמה:\n" +
+                   $"שם מלא: {registration.FullName}\n" +
+                   $"פרטי רכב: {registration.CarDetails}\n" +
+                   $"מספר טלפון: {registration.PhoneNumber}\n\n" +
+                   "האם כל הפרטים נכונים?";
+        }
+
+        #region Handle Confirmation Block
         public static async Task HandleConfirmation(ITelegramBotClient botClient, long chatId, CallbackQuery callbackData, CancellationToken cancellationToken)
         {
-            if (callbackData.Data == "confirm_yes")
+            switch (callbackData.Data)
             {
-                var DriverRegData = driverRegistrations[chatId];
-                DriverDTO driver = new DriverDTO
-                {
-                    CarDetails = DriverRegData.CarDetails,
-                    FullName = DriverRegData.FullName,
-                    finishedReg = 1,
-                    PhoneNumber = DriverRegData.PhoneNumber,
-                    UserName = callbackData.From.Username,
-                    DriverId = callbackData.From.Id.ToString(),
-                };
+                case "confirm_yes":
+                    await ConfirmDriverRegistration(botClient, chatId, callbackData, cancellationToken);
+                    break;
 
-                await driverRepository.InsertDriverAsync(driver);
+                case "confirm_no":
+                    await RestartDriverRegistration(botClient, chatId, cancellationToken);
+                    break;
 
-                await BotDriversResponseService.SendTextMessageAsync(botClient, chatId, "תודה! הפרטים שלך נשמרו בהצלחה.", cancellationToken);
-                await BotDriversResponseService.SendMainMenuAsync(botClient, chatId, cancellationToken);
-
-                driverRegistrations.Remove(chatId);
-                userStates.Remove(chatId);
-            }
-            else if (callbackData.Data == "confirm_no")
-            {
-                await BotDriversResponseService.SendTextMessageAsync(botClient, chatId, "בסדר, בוא נתחיל מחדש. מה השם המלא שלך?", cancellationToken);
-
-                driverRegistrations[chatId] = new DriverDTO();
-                userStates[chatId] = "awaiting_name";
+                default:
+                    await HandleInvalidConfirmation(botClient, chatId, cancellationToken);
+                    break;
             }
         }
+
+        private static async Task ConfirmDriverRegistration(ITelegramBotClient botClient, long chatId, CallbackQuery callbackData, CancellationToken cancellationToken)
+        {
+            var driverRegData = GetDriverRegistration(chatId);
+            if (driverRegData == null) return;
+
+            var driver = new DriverDTO
+            {
+                CarDetails = driverRegData.CarDetails,
+                FullName = driverRegData.FullName,
+                finishedReg = 1,
+                PhoneNumber = driverRegData.PhoneNumber,
+                UserName = callbackData.From.Username,
+                DriverId = callbackData.From.Id.ToString(),
+            };
+
+            await driverRepository.InsertDriverAsync(driver);
+
+            await SendTextMessageAsync(botClient, chatId, "תודה! הפרטים שלך נשמרו בהצלחה.", cancellationToken);
+            await SendMainMenuAsync(botClient, chatId, cancellationToken);
+
+            RemoveDriverRegistration(chatId);
+            RemoveUserState(chatId);
+        }
+
+        private static async Task RestartDriverRegistration(ITelegramBotClient botClient, long chatId, CancellationToken cancellationToken)
+        {
+            await SendTextMessageAsync(botClient, chatId, "בסדר, בוא נתחיל מחדש. מה השם המלא שלך?", cancellationToken);
+
+            AddOrUpdateDriverRegistration(chatId, new DriverDTO());
+            SetUserState(chatId, keywords.AwaitingNameState); // Use constant for state
+        }
+
+        private static async Task HandleInvalidConfirmation(ITelegramBotClient botClient, long chatId, CancellationToken cancellationToken)
+        {
+            await SendTextMessageAsync(botClient, chatId, "Confirmation data not recognized. Please try again.", cancellationToken);
+        }
+        #endregion
 
         public static async Task SendMainMenuAsync(ITelegramBotClient botClient, long chatId, CancellationToken cancellationToken)
         {
@@ -117,8 +204,8 @@ namespace telegramB.Services
         {
             await botClient.SendTextMessageAsync(
                 chatId: chatId,
-                text: "להתחיל לקבל הזמנות?",
-                replyMarkup: MenuMethods.StartGetOrdersMenu(),
+                text: "נא לבחור אופציה:",
+                replyMarkup: MenuMethods.StopReceivingOrdersMenu(),
                 cancellationToken: cancellationToken
             );
         }
@@ -153,12 +240,12 @@ namespace telegramB.Services
             );
         }
 
-        public static async Task SendTextMessageAsync(ITelegramBotClient botClient, long chatId, string text, CancellationToken cancellationToken, ParseMode? parseMode=ParseMode.Html)
+        public static async Task SendTextMessageAsync(ITelegramBotClient botClient, long chatId, string text, CancellationToken cancellationToken, ParseMode? parseMode = ParseMode.Html)
         {
             await botClient.SendTextMessageAsync(
                 chatId: chatId,
                 text: text,
-                parseMode: parseMode ,
+                parseMode: parseMode,
                 cancellationToken: cancellationToken
             );
         }
@@ -167,11 +254,46 @@ namespace telegramB.Services
         {
             await botClient.SendTextMessageAsync(
                 chatId: chatId,
-                text: "Do you want to stop receiving orders?",
+                text: "להפסקת קבלה של הזמנות יש לבחור אופציה מתאימה:",
                 replyMarkup: MenuMethods.StopReceivingOrdersMenu(),
                 cancellationToken: cancellationToken
             );
         }
 
+        private static async Task HandleAwaitingNameInput(ITelegramBotClient botClient, long chatId, string messageText, CancellationToken cancellationToken)
+        {
+            var driverRegistration = GetDriverRegistration(chatId);
+            if (driverRegistration == null) return;
+
+            driverRegistration.FullName = messageText;
+            AddOrUpdateDriverRegistration(chatId, driverRegistration);
+
+            await SendTextMessageAsync(botClient, chatId, "דגם וצבע הרכב? (כדי שהלקוח יזהה אותך, כן?)", cancellationToken);
+            SetUserState(chatId, keywords.AwaitingCarDetailsState);
+        }
+
+        private static async Task HandleAwaitingCarDetailsInput(ITelegramBotClient botClient, long chatId, string messageText, CancellationToken cancellationToken)
+        {
+            var driverRegistration = GetDriverRegistration(chatId);
+            if (driverRegistration == null) return;
+
+            driverRegistration.CarDetails = messageText;
+            AddOrUpdateDriverRegistration(chatId, driverRegistration);
+
+            await SendTextMessageAsync(botClient, chatId, "מה מספר הטלפון שלך?", cancellationToken);
+            SetUserState(chatId, keywords.AwaitingPhoneNumberState);
+        }
+
+        private static async Task HandleAwaitingPhoneNumberInput(ITelegramBotClient botClient, long chatId, string messageText, CancellationToken cancellationToken)
+        {
+            var driverRegistration = GetDriverRegistration(chatId);
+            if (driverRegistration == null) return;
+
+            driverRegistration.PhoneNumber = messageText;
+            AddOrUpdateDriverRegistration(chatId, driverRegistration);
+
+            await SendRegistrationSummary(botClient, chatId, cancellationToken);
+        }
     }
 }
+

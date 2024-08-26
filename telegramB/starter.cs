@@ -1,5 +1,6 @@
 ﻿using BL.Helpers;
 using BL.Services.Drivers;
+using Common.Services;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using StackExchange.Redis;
@@ -22,18 +23,6 @@ namespace telegramB
 
     public class starter
     {
-        private void testRedis()
-        {
-            var redis = ConnectionMultiplexer.Connect("10.0.2.15:6379");
-            var db = redis.GetDatabase();
-
-            // Example: Setting a key-value pair
-            db.StringSet("key", "value");
-
-            // Example: Getting the value
-            string value = db.StringGet("key");
-            Console.WriteLine(value);
-        }
 
         // Set a value in Redis
         //db.StringSet("myKey", "myValue");
@@ -52,21 +41,31 @@ namespace telegramB
         HandleDriverUpdateService _handleDriverService;
         HandleError _handleError;
         Dictionary<string, long> _userChatIds;
-
+        private readonly SessionManager _sessionManager;
+        CancellationTokenSource cts;
+        private ApprovalNotifier _approvalNotifier;
         public starter()
         {
   
         }
 
-        public starter(HandleUserUpdateService handleUpdate, HandleError handleError)
+        public starter(HandleUserUpdateService handleUpdate, HandleError handleError, SessionManager sessionManager)
         {
             _handleUpdate = handleUpdate;
             _handleError = handleError;
-            _userChatIds = LoadUserChatIds(UserChatIdsFilePath); // Load userChatIds from file
-            _handleDriverService = new HandleDriverUpdateService(_userChatIds);
-
+            //_userChatIds = LoadUserChatIds(UserChatIdsFilePath); // Load userChatIds from file
+            _sessionManager = sessionManager;
+            _handleDriverService = new HandleDriverUpdateService(_userChatIds, _sessionManager);
+            cts = new CancellationTokenSource();
+            //_approvalNotifier = new ApprovalNotifier(TypesManual.botDriver, cts.Token);
             // Set up a timer to save userChatIds every 5 minutes
-            _saveTimer = new Timer(SaveUserChatIds, null, TimeSpan.FromMinutes(2), TimeSpan.FromMinutes(20));
+            //_saveTimer = new Timer(ApprovalNotifierCallback, null, TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(20));
+           
+        }
+
+        private void ApprovalNotifierCallback()//object state)
+        {
+            new ApprovalNotifier(TypesManual.botDriver, cts.Token);
         }
 
         public async Task StartAsync()
@@ -74,7 +73,8 @@ namespace telegramB
             TypesManual.botClient = new TelegramBotClient(TypesManual.BotToken);
             TypesManual.botDriver = new TelegramBotClient(TypesManual.DriverBotToken);
 
-            using var cts = new CancellationTokenSource();
+            ApprovalNotifierCallback();
+            //var cts = new CancellationTokenSource();
 
             var receiverOptions = new ReceiverOptions
             {
@@ -101,32 +101,33 @@ namespace telegramB
             Console.WriteLine($"Bot @{driverBot.Username} is running...");
 
             // Initialize the ApprovalNotifier
-            var approvalNotifier = new ApprovalNotifier(TypesManual.botDriver, _userChatIds, cts.Token);
+           // var approvalNotifier = new ApprovalNotifier(TypesManual.botDriver, cts.Token);
 
             Console.WriteLine("Press any key to exit");
             Console.ReadKey();
 
-            SaveUserChatIds(null); // Save userChatIds to file before exiting
+         //   SaveUserChatIds(null); // Save userChatIds to file before exiting
             cts.Cancel();
         }
+   
 
-        private void SaveUserChatIds(object state)
-        {
-            if (_userChatIds.Count > 0)
-            {
-                var json = JsonConvert.SerializeObject(_userChatIds);
-                System.IO.File.WriteAllText(UserChatIdsFilePath, json);
-            }
-        }
+        //private void SaveUserChatIds(object state)
+        //{
+        //    if (_userChatIds.Count > 0)
+        //    {
+        //        var json = JsonConvert.SerializeObject(_userChatIds);
+        //        System.IO.File.WriteAllText(UserChatIdsFilePath, json);
+        //    }
+        //}
 
-        private Dictionary<string, long> LoadUserChatIds(string filePath)
-        {
-            if (System.IO.File.Exists(filePath))
-            {
-                var json = System.IO.File.ReadAllText(filePath);
-                return JsonConvert.DeserializeObject<Dictionary<string, long>>(json);
-            }
-            return new Dictionary<string, long>();
-        }
+        //private Dictionary<string, long> LoadUserChatIds(string filePath)
+        //{
+        //    if (System.IO.File.Exists(filePath))
+        //    {
+        //        var json = System.IO.File.ReadAllText(filePath);
+        //        return JsonConvert.DeserializeObject<Dictionary<string, long>>(json);
+        //    }
+        //    return new Dictionary<string, long>();
+        //}
     }
 }

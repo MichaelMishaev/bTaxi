@@ -10,6 +10,7 @@ namespace telegramB.Objects
         public int Id { get; set; }
         public AddressDTO FromAddress { get; set; }
         public AddressDTO ToAddress { get; set; }
+        public int OrderId { get; set; }
         public int NumberOfPassengers { get; set; }
         public string PhoneNumber { get; set; }
         public string CurrentStep { get; set; }

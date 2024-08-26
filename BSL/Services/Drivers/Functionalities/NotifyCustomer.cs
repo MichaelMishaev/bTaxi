@@ -15,6 +15,12 @@ namespace BL.Services.Drivers.Functionalities
     {
         DriverRepository driverRepository = new DriverRepository();
         OrderRepository orderRepository = new OrderRepository();
+        private readonly SessionManager _sessionManager;
+
+        public NotifyCustomer(SessionManager sessionManager)
+        {
+            _sessionManager = sessionManager;
+        }
         public async Task NotifyCustomerAboutETA(int orderId, int etaMinutes, ITelegramBotClient botClient, CancellationToken cancellationToken)
         {
             var order = await orderRepository.GetOrderByIdAsync(orderId);
@@ -35,7 +41,7 @@ namespace BL.Services.Drivers.Functionalities
                 );
 
                 // Add the "ride finished" button
-                var finishRideButton = MenuMethods.FinishRideButton(orderId);
+                var finishRideButton = MenuMethods.FinishRideButton(orderId,order.ToAddress.GetFormattedAddress());
                 var finishRideMessage = await TypesManual.botClient.SendTextMessageAsync(
                     chatId: order.userId,
                     text: "אנא לחץ על הכפתור כשנסיעה הושלמה:",
@@ -48,7 +54,7 @@ namespace BL.Services.Drivers.Functionalities
 
                 // Store the message ID of the "ride finished" button message
                 var userState = $"awaiting_finish:{orderId}:{finishRideMessage.MessageId}";
-                SessionManager.SetSessionData(order.userId, "UserState", userState);
+                await _sessionManager.SetSessionData(order.userId, "UserState", userState);
             }
             else
             {

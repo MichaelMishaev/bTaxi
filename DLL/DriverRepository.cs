@@ -68,6 +68,7 @@ namespace DAL
         }
         public async Task InsertDriverAsync(DriverDTO driver)
         {
+           
             string query = @"
                             INSERT INTO `btrip`.`driver`
                             (`driverId`, `userName`, `fullName`, `phoneNumber`,  `finishedReg`,`CarDetails`)
@@ -97,6 +98,7 @@ namespace DAL
 
 
                         await command.ExecuteNonQueryAsync();
+                        Console.WriteLine("New driver inserted");
                     }
                 }
             }
@@ -168,7 +170,7 @@ namespace DAL
             return isApproved;
         }
 
-        public async Task<bool> CheckUserStatusAsync(string userId)
+        public async Task<bool> CheckUserStatusAsync(long userId)
         {
 
             bool isApproved = false;

@@ -1,4 +1,5 @@
-﻿using Common.DTO;
+﻿using BL.Services.Drivers.StaticFiles;
+using Common.DTO;
 using Common.Services;
 using DAL;
 using System;
@@ -15,39 +16,90 @@ namespace BL.Services.Drivers.Functionalities
     public class ConfirmationHandler
     {
         DriverRepository driverRepository = new DriverRepository();
+        private readonly SessionManager _sessionManager;
+        public ConfirmationHandler(SessionManager sessionManager)
+        {
+                _sessionManager = sessionManager;
+        }
         public async Task HandleConfirmation(ITelegramBotClient botClient, long chatId, CallbackQuery callbackData, CancellationToken cancellationToken)
         {
-            if (callbackData.Data == "confirm_yes")
+            switch (callbackData.Data)
             {
-                var driverRegistration = SessionManager.GetSessionData<DriverDTO>(chatId, "DriverRegistration"); //************ Comments
-                DriverDTO driver = new DriverDTO
-                {
-                    CarDetails = driverRegistration.CarDetails,
-                    FullName = driverRegistration.FullName,
-                    finishedReg = 1,
-                    PhoneNumber = driverRegistration.PhoneNumber,
-                    UserName = callbackData.From.Username,
-                    DriverId = callbackData.From.Id.ToString(),
-                };
+                case "confirm_yes":
+                    await ConfirmDriverRegistration(botClient, chatId, callbackData, cancellationToken);
+                    break;
 
-                await driverRepository.InsertDriverAsync(driver);
+                case "confirm_no":
+                    await RestartDriverRegistration(botClient, chatId, cancellationToken);
+                    break;
 
-                await BotDriversResponseService.SendTextMessageAsync(botClient, chatId, "הפרטים נשמרו בהצלחה, אנו נעדכן בקרוב מאד אם הפרטים אומתו", cancellationToken);
-                SessionManager.SetSessionData(callbackData.From.Id, "UserChatId", chatId); //************ Comments
-
-
-                SessionManager.RemoveSessionData(chatId, "DriverRegistration"); //************ Comments
-                SessionManager.RemoveSessionData(chatId, "DriverUserState"); //************ Comments
+                default:
+                    await HandleInvalidConfirmation(botClient, chatId, cancellationToken);
+                    break;
             }
-            else if (callbackData.Data == "confirm_no")
+        }
+
+        // Refactored helper methods
+        private async Task ConfirmDriverRegistration(ITelegramBotClient botClient, long chatId, CallbackQuery callbackData, CancellationToken cancellationToken)
+        {
+            var driverRegData = await _sessionManager.GetSessionData<DriverDTO>(chatId, "DriverRegistration");
+            if (driverRegData == null) return;
+
+            var driver = MapToDriverDTO(driverRegData, callbackData);
+            await SaveDriverData(driver);
+
+            await BotDriversResponseService.SendTextMessageAsync(botClient, chatId, "תודה! הפרטים שלך נשמרו בהצלחה.", cancellationToken);
+            await BotDriversResponseService.SendTextMessageAsync(botClient, chatId, "יש להמתין לאימות הפרטים 🗽 ,\nהתהליך יקח עד 24 שעות ⌛️.\nאבל כמובן שננסה כמה שיותר מהר, הודעה תישלח בסיום.",  cancellationToken);
+            //await BotDriversResponseService.SendMainMenuAsync(botClient, chatId, cancellationToken);
+
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.WriteLine("====================================================");
+            Console.WriteLine($"Waiting driver DB Confirmation,  driver {chatId}");
+            Console.WriteLine("====================================================");
+            Console.ResetColor();
+
+            ClearDriverSessionData(chatId);
+        }
+
+        private async Task RestartDriverRegistration(ITelegramBotClient botClient, long chatId, CancellationToken cancellationToken)
+        {
+            // Logic to restart the driver registration
+            var driverRegistration = new DriverDTO();
+            await _sessionManager.SetSessionData(chatId, "DriverRegistration", driverRegistration);
+            await _sessionManager.SetSessionData(chatId, "DriverUserState", keywords.AwaitingNameState);
+
+            await BotDriversResponseService.SendTextMessageAsync(botClient, chatId, "בסדר, בוא נתחיל מחדש. מה השם המלא שלך?", cancellationToken);
+        }
+
+        // Implementing the missing HandleInvalidConfirmation method
+        private async Task HandleInvalidConfirmation(ITelegramBotClient botClient, long chatId, CancellationToken cancellationToken)
+        {
+            // Logic to handle invalid confirmation scenarios
+            await BotDriversResponseService.SendTextMessageAsync(botClient, chatId, "Confirmation data not recognized. Please try again.", cancellationToken);
+        }
+
+        private DriverDTO MapToDriverDTO(DriverDTO driverRegData, CallbackQuery callbackData)
+        {
+            return new DriverDTO
             {
-                await BotDriversResponseService.SendTextMessageAsync(botClient, chatId, "בסדר, בוא נתחיל מחדש. מה השם המלא שלך?", cancellationToken);
+                CarDetails = driverRegData.CarDetails,
+                FullName = driverRegData.FullName,
+                finishedReg = 1,
+                PhoneNumber = driverRegData.PhoneNumber,
+                UserName = callbackData.From.Username,
+                DriverId = callbackData.From.Id.ToString(),
+            };
+        }
 
-                var driverRegistration = new DriverDTO(); //************ Comments
-                SessionManager.SetSessionData(chatId, "DriverRegistration", driverRegistration); //************ Comments
-                var driverState = "awaiting_name"; //************ Comments
-                SessionManager.SetSessionData(chatId, "DriverUserState", driverState); //************ Comments
-            }
+        private async Task SaveDriverData(DriverDTO driver)
+        {
+            await driverRepository.InsertDriverAsync(driver);
+        }
+
+        private void ClearDriverSessionData(long chatId)
+        {
+            _sessionManager.RemoveSessionData(chatId, "DriverRegistration");
+            _sessionManager.RemoveSessionData(chatId, "DriverUserState");
         }
     }
 }

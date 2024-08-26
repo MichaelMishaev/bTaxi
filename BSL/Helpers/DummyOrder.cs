@@ -1,13 +1,11 @@
 ﻿using DAL;
 using System;
 using System.Collections.Generic;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Telegram.Bot;
 using telegramB.Menus;
 using telegramB.Objects;
-using telegramB;
 using Common.Services;
 using Common.DTO;
 
@@ -17,6 +15,12 @@ namespace BL.Helpers
     {
         private static Dictionary<long, UserOrder> userOrders = new Dictionary<long, UserOrder>();
         DriverRepository driverRepository = new DriverRepository();
+        private readonly SessionManager _sessionManager;
+
+        public DummyOrder(SessionManager sessionManager)
+        {
+            _sessionManager = sessionManager;
+        }
         public async Task<UserOrder> CreateDummyOrderAsync(long chatId, ITelegramBotClient botClient, CancellationToken cancellationToken)
         {
             OrderRepository orderRepository = new OrderRepository();
@@ -34,68 +38,32 @@ namespace BL.Helpers
                     StreetNumber = 5,
                     City = "אריאל"
                 },
-                PhoneNumber = "123456789",
-                Remarks = "This is a test order",
+                NumberOfPassengers = 2,  // Default number of passengers
                 userId = chatId,
-                price = 100
+                CurrentStep = "awaiting_bid"
             };
 
             userOrders[chatId] = dummyOrder;
 
-            int orderId = await orderRepository.PlaceOrderAsync(dummyOrder, 666);
+            // Save session data for user order and state
+            await _sessionManager.SetSessionData(chatId, "UserOrder", dummyOrder);
+            await _sessionManager.SetSessionData(chatId, "UserState", "awaiting_bid"); // Set the state to prompt for phone number
 
+            // Inform the user to enter the phone number
             await botClient.SendTextMessageAsync(
                 chatId: chatId,
-                text: "Dummy order created successfully. Waiting for drivers to respond.",
+                text: "הכנס מספר טלפון להשלמת ההזמנה:",
                 cancellationToken: cancellationToken
             );
 
-            string separator = new string('-', 30); // Separator line
-            string dateTimeNow = DateTime.Now.ToString("dd/MM/yyyy HH:mm:ss"); // Formatted date-time
-            string orderNotification = $"{separator}\n" +
-                                       $"הודעה חדשה התקבלה בתאריך: {dateTimeNow}\n\n" + // Add formatted date-time
-                                       $"הזמנה חדשה התקבלה!\n" +
-                                       $"מ: {dummyOrder.FromAddress}\n" +
-                                       $"אל: {dummyOrder.ToAddress}\n" +
-                                       $"מחיר: {dummyOrder.price}\n" +
-                                       $"מספר טלפון: {dummyOrder.PhoneNumber}\n" +
-                                       $"הערות: {dummyOrder.Remarks}";
-
-
-            var workingDrivers = await driverRepository.GetWorkingDriversAsync();
-
-            foreach (var driver in workingDrivers)
-            {
-                long driverChatId = Convert.ToInt64(driver.DriverId);
-
-                try
-                {
-                    await TypesManual.botDriver.SendTextMessageAsync(
-                        chatId: driverChatId,
-                        text: orderNotification,
-                        cancellationToken: cancellationToken
-                    );
-
-                    var orderActionsMenu = MenuMethods.GetOrderActionsMenu(orderId);
-                    await TypesManual.botDriver.SendTextMessageAsync(
-                        chatId: driverChatId,
-                        text: "בחר פעולה:",
-                        replyMarkup: orderActionsMenu,
-                        cancellationToken: cancellationToken
-                    );
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"Failed to send message to driver {driver.DriverId}: {ex.Message}");
-                }
-            }
             return dummyOrder;
         }
+
         public async Task AddDummyAddressesAsync(long chatId, ITelegramBotClient botClient, CancellationToken cancellationToken)
         {
             // Retrieve userOrder and userState from session storage
-            var userOrder = SessionManager.GetSessionData<UserOrder>(chatId, "UserOrder");
-            var userState = SessionManager.GetSessionData<string>(chatId, "UserState");
+            var userOrder = await _sessionManager.GetSessionData<UserOrder>(chatId, "UserOrder");
+            var userState = await _sessionManager.GetSessionData<string>(chatId, "UserState");
 
             if (userOrder == null)
             {
@@ -117,26 +85,22 @@ namespace BL.Helpers
             };
 
             userOrder.PhoneNumber = "0544654456";
+            userOrder.NumberOfPassengers = 2;  // Default number of passengers
 
-            // Update the user state to indicate that addresses and phone number have been inserted
-            userState = "addresses_phone_inserted";
+            // Update the user state to indicate that phone number needs to be inserted
+            userOrder.CurrentStep = "enter_phone";
+            userState = "enter_phone";
 
             // Save the updated userOrder and userState to session storage
-            SessionManager.SetSessionData(chatId, "UserOrder", userOrder); // Save session data
-            SessionManager.SetSessionData(chatId, "UserState", userState); // Save session data
+            await _sessionManager.SetSessionData(chatId, "UserOrder", userOrder);
+            await _sessionManager.SetSessionData(chatId, "UserState", userState);
 
-            // Notify the user that the addresses and phone number have been inserted
-            var summaryText = $"כתובת נקודת האיסוף: {userOrder.FromAddress.Street} {userOrder.FromAddress.StreetNumber}, {userOrder.FromAddress.City}\n" +
-                              $"כתובת יעד: {userOrder.ToAddress.Street} {userOrder.ToAddress.StreetNumber}, {userOrder.ToAddress.City}\n" +
-                              $"מספר טלפון: {userOrder.PhoneNumber}";
-
+            // Notify the user to insert phone number
             await botClient.SendTextMessageAsync(
                 chatId: chatId,
-                text: summaryText,
-                replyMarkup: MenuMethods.ShowUpdatedMenu(userOrder),
+                text: "הכנס מספר טלפון להשלמת ההזמנה:",
                 cancellationToken: cancellationToken
             );
         }
-
     }
 }

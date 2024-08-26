@@ -16,10 +16,12 @@ namespace BL.Helpers
             var mainMenuButtons = MenuMethods.mainMenuButtons();
 
             //****************************************************************//
+            string greetMessage = $"ברוכים הבאים תושבי אריאל והסביבה 🙌 \n" +
+                                   "אנא בחרו אפשרות:";
 
             await botClient.SendTextMessageAsync(
                 chatId: chatId,
-                text: "Welcome! Choose an option:",
+                text: greetMessage,
                 replyMarkup: mainMenuButtons,
                 cancellationToken: cancellationToken
 

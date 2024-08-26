@@ -15,6 +15,7 @@ using telegramB;
 using Common.Services;
 using telegramB.Objects;
 using BL.Services.Drivers.Functionalities;
+using BL.Services.Drivers.StaticFiles;
 
 namespace BL.Services.Drivers
 {
@@ -25,57 +26,49 @@ namespace BL.Services.Drivers
         DBCommands dBCommands = new DBCommands();
         private Dictionary<string, long> _userChatIds;
         OrderRepository orderRepository = new OrderRepository();
-        HandleDriverInput handleDriverInput = new HandleDriverInput();
-        DriverRegistration driverRegistration = new DriverRegistration();
-        ConfirmationHandler confirmationHandler = new ConfirmationHandler();
+        private readonly HandleDriverInput handleDriverInput;
+        private readonly DriverRegistration driverRegistration;
+        private readonly ConfirmationHandler confirmationHandler;
+        private readonly SessionManager _sessionManager;
 
-        public HandleDriverUpdateService(Dictionary<string, long> userChatIds)
+        public HandleDriverUpdateService(Dictionary<string, long> userChatIds, SessionManager sessionManager)
         {
             _userChatIds = userChatIds; // Assign userChatIds
+            _sessionManager = sessionManager;
+            handleDriverInput = new HandleDriverInput(_sessionManager);
+            driverRegistration = new DriverRegistration(_sessionManager);
+            confirmationHandler = new ConfirmationHandler(_sessionManager);
         }
 
         public async Task HandleDriverUpdateAsync(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
         {
             var chatId = update.CallbackQuery?.Message.Chat.Id ?? update.Message?.Chat.Id ?? 0;
-
-            // Retrieve session data for driver
-            var driverState = SessionManager.GetSessionData<string>(chatId, "DriverUserState"); //************ Comments
-
             long bidId = 0;
-            if (update.CallbackQuery != null && update.CallbackQuery.Data.StartsWith("accept_order:"))
+
+            long clientChatId = await _sessionManager.GetClientChatIdForDriver(chatId, bidId) ?? 0;
+            var userOrder =await _sessionManager.GetSessionData<UserOrder>(clientChatId, "UserOrder");
+
+            var driverState = await _sessionManager.GetSessionData<string>(chatId, "DriverUserState");
+
+            bool driverExists = update.CallbackQuery != null
+                ? await driverRepository.checkIfDriverExists(update.CallbackQuery.From.Id)
+                : await driverRepository.checkIfDriverExists(update.Message.From.Id);
+
+            bool isApprovedDriver = update.CallbackQuery != null
+                ? await driverRepository.isApprovedDriver(update.CallbackQuery.From.Id)
+                : await driverRepository.isApprovedDriver(update.Message.From.Id);
+
+            if (driverExists && isApprovedDriver)
             {
-                var parts = update.CallbackQuery.Data.Split(':');
-                bidId = long.Parse(parts[1]);
+                //MenuMethods.StopReceivingOrdersMenuMultipleUse();
             }
-            else if (!string.IsNullOrEmpty(driverState) && driverState.Contains(":"))
-            {
-                bidId = long.Parse(driverState.Split(':')[1]);
-            }
-
-            long clientChatId = SessionManager.GetClientChatIdForDriver(chatId, bidId) ?? 0;
-            var userOrder = SessionManager.GetSessionData<UserOrder>(clientChatId, "UserOrder");
-
-            if (userOrder == null || string.IsNullOrEmpty(driverState))
-            {
-                await botClient.SendTextMessageAsync(
-                    chatId: chatId,
-                    text: "No active order found. Please start a new order.",
-                    cancellationToken: cancellationToken
-                );
-                return;
-            }
-
-            bool isApprovedDriver = false;
-            bool driverExists = false;
-
             if ((update.CallbackQuery == null) && (update.Message == null))
             {
                 Console.WriteLine("all nulls checkpoint");
                 return;
             }
 
-            driverExists = update.CallbackQuery != null ? await driverRepository.checkIfDriverExists(update.CallbackQuery.From.Id) : await driverRepository.checkIfDriverExists(update.Message.From.Id);
-            isApprovedDriver = update.CallbackQuery != null ? await driverRepository.isApprovedDriver(update.CallbackQuery.From.Id) : await driverRepository.isApprovedDriver(update.Message.From.Id);
+
 
             var buser = update.CallbackQuery != null ? update.CallbackQuery.From.Id : update.Message.From.Id;
             if (buser == 5164987026)
@@ -86,26 +79,60 @@ namespace BL.Services.Drivers
             if (update.Type == UpdateType.Message)
             {
                 var message = update.Message;
+                //if new driver sends name withot going threw the menu, just sends text, thr _sessionManager.GetSessionData<DriverDTO>(chatId, "DriverRegistration")==null
+                //Throw exception in ahead
+                var isRegistered = _sessionManager.GetSessionData<DriverDTO>(chatId, "DriverRegistration") == null ? false : true;
 
                 if (message?.Type == MessageType.Text)
                 {
                     var messageText = message.Text;
 
-                    if (messageText == "/start")
+                    if (messageText == "/start" || (!isRegistered && driverState == null))
                     {
                         await BotDriversResponseService.SendMainMenuAsync(TypesManual.botDriver, chatId, cancellationToken);
-                    }
-                    else if (driverExists && !isApprovedDriver)
-                    {
-                        await BotDriversResponseService.SendTextMessageAsync(TypesManual.botDriver, chatId, "הבקשה שלך נשלחה לאישור, אחרי אישורה תשלח אליך הודעה. תודה.", cancellationToken);
                     }
                     else if (driverState != null)
                     {
                         await handleDriverInput.HandleUserInput(TypesManual.botDriver, chatId, messageText, cancellationToken);
                     }
-                    else if (driverExists && isApprovedDriver)
+                    else if (!driverExists && string.IsNullOrEmpty(driverState))
                     {
-                        await BotDriversResponseService.SendStartOrdersMenuAsync(TypesManual.botDriver, chatId, cancellationToken);
+                        //Register driver
+                        await BotDriversResponseService.StartRegistration(TypesManual.botDriver, chatId, message.MessageId, cancellationToken);
+                    }
+
+                    else if (driverExists && isApprovedDriver)
+                    {  
+                        switch (messageText)
+                        {
+                            case "/get_orders":
+                                await driverRepository.SetDriverRecieveJobs(chatId);
+                                if (isApprovedDriver)
+                                {
+                                   // await BotDriversResponseService.SendStopReceivingOrdersMenuAsync(TypesManual.botDriver, chatId, cancellationToken);
+                                    await BotDriversResponseService.SendTextMessageAsync(TypesManual.botDriver, chatId, "הינך פתוח לקבלת הזמנות, אנא המתן.....", cancellationToken);
+                                }
+                                else
+                                {
+                                    await BotDriversResponseService.SendTextMessageAsync(TypesManual.botDriver, chatId, "המשתמש עדיין לא אושר ⌛️", cancellationToken);
+                                }
+                                break;
+                            case "/no_orders":
+                                await driverRepository.SetDriverDeclineJobs(chatId);
+                                await BotDriversResponseService.SendTextMessageAsync(TypesManual.botDriver, chatId, "אינך מקבל/ת הזמנות כרגע  🍺.", cancellationToken);
+                                await BotDriversResponseService.SendTextMessageAsync(TypesManual.botDriver, chatId, "ברגע שיהיה מצב רוח טוב להרוויח קצת, יש לבחור אופציה מתאימה  👇🏻", cancellationToken);
+                                await BotDriversResponseService.SendStartOrdersMenuAsync(TypesManual.botDriver, chatId, cancellationToken);
+                                break;
+                            case "/help":
+                                //todo
+                                break;
+                            default:
+                                await BotDriversResponseService.SendStartOrdersMenuAsync(TypesManual.botDriver, chatId, cancellationToken);
+                                break;
+                        }
+
+
+                        
                     }
                     else
                     {
@@ -113,6 +140,8 @@ namespace BL.Services.Drivers
                     }
                 }
             }
+
+
             else if (update.Type == UpdateType.CallbackQuery)
             {
                 var callbackQuery = update.CallbackQuery;
@@ -120,32 +149,50 @@ namespace BL.Services.Drivers
 
                 if (driverExists && !isApprovedDriver)
                 {
-                    await BotDriversResponseService.SendTextMessageAsync(TypesManual.botDriver, chatId, "המשתמש עדיין לא אושר", cancellationToken);
+                    await BotDriversResponseService.SendTextMessageAsync(TypesManual.botDriver, chatId, "המשתמש עדיין לא אושר ⌛️", cancellationToken);
                 }
-                else if (callbackQuery.Data == "start_orders")
+                else if (callbackQuery.Data == "start_registration")
                 {
-                    await driverRepository.SetDriverRecieveJobs(callbackQuery.From.Id);
-                    if (isApprovedDriver)
+                    if (driverExists)
                     {
-                        await BotDriversResponseService.SendTextMessageAsync(TypesManual.botDriver, chatId, "הינך פתוח לקבלת הזמנות, אנא המתן.....", cancellationToken);
-                        await BotDriversResponseService.SendStopReceivingOrdersMenuAsync(TypesManual.botDriver, chatId, cancellationToken);
+                        await BotDriversResponseService.SendTextMessageAsync(TypesManual.botDriver, chatId, "משתמש זה כבר קיים במערכת", cancellationToken);
+                        await BotDriversResponseService.SendStartOrdersMenuAsync(TypesManual.botDriver, chatId, cancellationToken);
+                        return;
                     }
-                    else
-                    {
-                        await BotDriversResponseService.SendTextMessageAsync(TypesManual.botDriver, chatId, "המשתמש עדיין לא אושר", cancellationToken);
-                    }
+                    await driverRegistration.StartRegistration(TypesManual.botDriver, chatId, messageId, cancellationToken);
                 }
+                //else if (callbackQuery.Data == "start_orders")
+                //{
+                //    await driverRepository.SetDriverRecieveJobs(callbackQuery.From.Id);
+                //    if (isApprovedDriver)
+                //    {
+                //        await BotDriversResponseService.SendTextMessageAsync(TypesManual.botDriver, chatId, "הינך פתוח לקבלת הזמנות, אנא המתן.....", cancellationToken);
+                //        await BotDriversResponseService.SendStopReceivingOrdersMenuAsync(TypesManual.botDriver, chatId, cancellationToken);
+                //    }
+                //    else
+                //    {
+                //        await BotDriversResponseService.SendTextMessageAsync(TypesManual.botDriver, chatId, "המשתמש עדיין לא אושר ⌛️", cancellationToken);
+                //    }
+                //}
                 else if (callbackQuery.Data == "no_orders")
                 {
                     await driverRepository.SetDriverDeclineJobs(callbackQuery.From.Id);
-                    await BotDriversResponseService.SendTextMessageAsync(TypesManual.botDriver, chatId, "אינך מקבל הזמנות כרגע.", cancellationToken);
-                    await BotDriversResponseService.SendTextMessageAsync(TypesManual.botDriver, chatId, "ברגע שיהיה מצב רוח טוב להרוויח קצת, תלחצו על כן!!", cancellationToken);
+                    await BotDriversResponseService.SendTextMessageAsync(TypesManual.botDriver, chatId, "אינך מקבל/ת הזמנות כרגע  🍺", cancellationToken);
+                    await BotDriversResponseService.SendTextMessageAsync(TypesManual.botDriver, chatId, "ברגע שיהיה מצב רוח טוב להרוויח קצת, יש לבחור אופציה מתאימה  👇🏻", cancellationToken);
                     await BotDriversResponseService.SendStartOrdersMenuAsync(TypesManual.botDriver, chatId, cancellationToken);
                 }
                 else if (callbackQuery.Data == "continue_orders")
                 {
-                    await BotDriversResponseService.SendTextMessageAsync(TypesManual.botDriver, chatId, "הינך ממשיך לקבל הזמנות.", cancellationToken);
-                    await BotDriversResponseService.SendStopReceivingOrdersMenuAsync(TypesManual.botDriver, chatId, cancellationToken);
+                    await driverRepository.SetDriverRecieveJobs(callbackQuery.From.Id);
+                    if (isApprovedDriver)
+                    {
+                        await BotDriversResponseService.SendStopReceivingOrdersMenuAsync(TypesManual.botDriver, chatId, cancellationToken);
+                        await BotDriversResponseService.SendTextMessageAsync(TypesManual.botDriver, chatId, "הינך פתוח לקבלת הזמנות, אנא המתן.....", cancellationToken);
+                    }
+                    else
+                    {
+                        await BotDriversResponseService.SendTextMessageAsync(TypesManual.botDriver, chatId, "המשתמש עדיין לא אושר ⌛️", cancellationToken);
+                    }
                 }
                 else if (callbackQuery.Data == "confirm_no")
                 {
@@ -157,16 +204,6 @@ namespace BL.Services.Drivers
                     }
                     await BotDriversResponseService.SendTextMessageAsync(TypesManual.botDriver, chatId, "אין אימות פרטים נתחיל מחדש? ", cancellationToken);
                     await BotDriversResponseService.SendRegistrationMenuAsync(TypesManual.botDriver, chatId, cancellationToken);
-                }
-                else if (callbackQuery.Data == "start_registration")
-                {
-                    if (driverExists)
-                    {
-                        await BotDriversResponseService.SendTextMessageAsync(TypesManual.botDriver, chatId, "משתמש זה כבר קיים במערכת", cancellationToken);
-                        await BotDriversResponseService.SendStartOrdersMenuAsync(TypesManual.botDriver, chatId, cancellationToken);
-                        return;
-                    }
-                    await driverRegistration.StartRegistration(TypesManual.botDriver, chatId, messageId, cancellationToken);
                 }
                 else if (callbackQuery.Data == "registered_driver")
                 {
@@ -180,11 +217,11 @@ namespace BL.Services.Drivers
                         await BotDriversResponseService.SendMainMenuAsync(TypesManual.botDriver, chatId, cancellationToken);
                     }
                 }
-                else if (driverState != null && driverState == "awaiting_confirmation") //************ Comments
+                else if (driverState != null && driverState == keywords.AwaitingConfirmationState) //************ Comments
                 {
                     await confirmationHandler.HandleConfirmation(TypesManual.botDriver, chatId, callbackQuery, cancellationToken);
                 }
-                else if (callbackQuery.Data.StartsWith("accept_bid:"))
+                else if (callbackQuery.Data.StartsWith($"{keywords.AcceptBid}:"))
                 {
                     var data = callbackQuery.Data.Split(':');
                     var bidChatId = long.Parse(data[1]);
@@ -220,10 +257,10 @@ namespace BL.Services.Drivers
 
                     var userState = $"awaiting_bid:{bidChatId}";  //************ Comments
                     userOrder.CurrentStep = "awaiting_bid"; //************ Comments
-                    SessionManager.SetSessionData(bidChatId, "UserState", userState); //************ Comments
-                    SessionManager.SetSessionData(bidChatId, "UserOrder", userOrder); //************ Comments
+                    await _sessionManager.SetSessionData(bidChatId, "UserState", userState); //************ Comments
+                    await _sessionManager.SetSessionData(bidChatId, "UserOrder", userOrder); //************ Comments
                 }
-                else if (callbackQuery.Data.StartsWith("accept_order:"))
+                else if (callbackQuery.Data.StartsWith("accept_order222:"))
                 {
                     var orderId = int.Parse(callbackQuery.Data.Split(':')[1]);
                     var driverId = callbackQuery.From.Id;
@@ -234,6 +271,7 @@ namespace BL.Services.Drivers
                     {
                         await orderRepository.AssignOrderToDriverAsync(orderId, driverId);
 
+                        var result = await orderRepository.GetOrderByIdAsync(orderId);
                         await botClient.SendTextMessageAsync(
                             chatId: callbackQuery.Message.Chat.Id,
                             text: "הזמנה התקבלה בהצלחה!",
@@ -241,9 +279,9 @@ namespace BL.Services.Drivers
                         );
 
                         var customerId = await orderRepository.GetCustomerIdByOrderId(orderId);
-                        await botClient.SendTextMessageAsync(
+                        await TypesManual.botClient.SendTextMessageAsync(
                             chatId: customerId,
-                            text: "נהג התקבל את הזמנתך. פרטי הנהג יישלחו אליך בקרוב.",
+                            text: "נהג קיבל את הזמנתך. פרטי הנהג יישלחו אליך בקרוב.",
                             cancellationToken: cancellationToken
                         );
                     }
@@ -260,10 +298,21 @@ namespace BL.Services.Drivers
                 {
                     chatId = callbackQuery.Message.Chat.Id;
                     var driverId = callbackQuery.From.Id;
-                    bidId = long.Parse(callbackQuery.Data.Split(':')[1]);
+                    var orderId = long.Parse(callbackQuery.Data.Split(':')[1]);
 
+                    bool isAssigned = await orderRepository.CheckOrderAssignedAsync((int)orderId);
+
+                    if (isAssigned)
+                    {
+                        await botClient.SendTextMessageAsync(
+                            chatId: callbackQuery.Message.Chat.Id,
+                            text: "מצטערים, ההזמנה כבר נלקחה על ידי נהג אחר.",
+                            cancellationToken: cancellationToken
+                        );
+                        return;
+                    }
                     // Store the mapping between driver ID and client chat ID
-                    SessionManager.SetDriverToClientMapping(driverId, chatId, bidId);
+                    await _sessionManager.SetDriverToClientMapping(driverId, chatId, orderId);
 
                     await botClient.SendTextMessageAsync(
                         chatId: chatId,
@@ -271,49 +320,10 @@ namespace BL.Services.Drivers
                         cancellationToken: cancellationToken
                     );
 
-                    var localDriverState = $"awaiting_driver_bid:{bidId}"; //************ Comments
-                    SessionManager.SetSessionData(chatId, "DriverUserState", localDriverState); //************ Comments
+                    var localDriverState = $"awaiting_driver_bid:{orderId}"; //************ Comments
+                    await _sessionManager.SetSessionData(chatId, "DriverUserState", localDriverState); //************ Comments
                 }
-                else if (driverState != null && driverState.StartsWith("awaiting_driver_bid:")) //************ Comments
-                {
-                    var driverId = long.Parse(driverState.Split(':')[1]); //************ Comments
-
-                    if (decimal.TryParse(callbackQuery.Message.Text, out decimal driverBid))
-                    {
-                        await orderRepository.InsertDriverBidAsync(chatId, driverId, driverBid);
-
-                        await botClient.SendTextMessageAsync(
-                            chatId: chatId,
-                            text: "הצעת המחיר שלך נשמרה בהצלחה.",
-                            cancellationToken: cancellationToken
-                        );
-
-                        var customerChatId = await orderRepository.GetCustomerChatIdByBidChatIdAsync(chatId);
-                        if (customerChatId.HasValue)
-                        {
-                            await TypesManual.botClient.SendTextMessageAsync(
-                                chatId: customerChatId.Value,
-                                text: $"נהג הציע מחיר חדש לנסיעה. הצעת מחיר: {driverBid:F2} ₪",
-                                cancellationToken: cancellationToken
-                            );
-
-                            var userState = $"awaiting_bid:{chatId}"; //************ Comments
-                            SessionManager.SetSessionData(customerChatId.Value, "UserState", userState); //************ Comments
-                        }
-
-                        // Clear session data for the driver
-                        SessionManager.RemoveSessionData(chatId, "DriverUserState"); //************ Comments
-                    }
-                    else
-                    {
-                        await botClient.SendTextMessageAsync(
-                            chatId: chatId,
-                            text: "הצעת מחיר לא תקינה. אנא הזן מספר תקין:",
-                            cancellationToken: cancellationToken
-                        );
-                    }
-                }
-                else if (callbackQuery.Data.StartsWith("take_order:"))
+                else if (callbackQuery.Data.StartsWith("accept_order:"))
                 {
                     var orderId = int.Parse(callbackQuery.Data.Split(':')[1]);
                     var driverId = callbackQuery.From.Id;
@@ -323,7 +333,7 @@ namespace BL.Services.Drivers
                     if (!isAssigned)
                     {
                         var localDriverState = $"awaiting_eta:{orderId}"; //************ Comments
-                        SessionManager.SetSessionData(chatId, "DriverUserState", localDriverState); //************ Comments
+                        await _sessionManager.SetSessionData(chatId, "DriverUserState", localDriverState); //************ Comments
 
                         var cancelOption = MenuMethods.cancelOrder(orderId);
 
@@ -345,9 +355,16 @@ namespace BL.Services.Drivers
                             text: "כמה זמן ייקח לך להגיע? ⌛️(בזמן בדקות)",
                             cancellationToken: cancellationToken
                         );
+                        isAssigned = await orderRepository.CheckOrderAssignedAsync(orderId);
+                        if (isAssigned)
+                        {
+                            await _sessionManager.RemoveSessionData(chatId, "DriverUserState");
+                            await BotDriversResponseService.SendTextMessageAsync(botClient, chatId, "מצטערים, הזמנה זו כבר נלקחה על ידי נהג אחר.", cancellationToken);
+                        }
                     }
                     else
                     {
+                        await _sessionManager.RemoveSessionData(chatId, "DriverUserState");
                         await BotDriversResponseService.SendTextMessageAsync(botClient, chatId, "מצטערים, הזמנה זו כבר נלקחה על ידי נהג אחר.", cancellationToken);
                     }
                 }
@@ -374,13 +391,13 @@ namespace BL.Services.Drivers
                     }
 
                     // Clear session data after finishing the ride
-                    SessionManager.RemoveSessionData(chatId, "DriverUserState"); //************ Comments
+                   await _sessionManager.RemoveSessionData(chatId, "DriverUserState"); //************ Comments
                 }
                 else if (callbackQuery.Data.StartsWith("cancel_order:"))
                 {
                     var orderId = int.Parse(callbackQuery.Data.Split(':')[1]);
                     // Clear session data for canceling the order
-                    SessionManager.RemoveSessionData(chatId, "DriverUserState"); //************ Comments
+                    _sessionManager.RemoveSessionData(chatId, "DriverUserState"); //************ Comments
                     await BotDriversResponseService.SendTextMessageAsync(botClient, chatId, "ההזמנה בוטלה.", cancellationToken);
                 }
                 else if (callbackQuery.Data == "view_orders")
@@ -399,6 +416,45 @@ namespace BL.Services.Drivers
                             var orderActionsMenu = MenuMethods.GetOrderActionsMenu(order.Id);
                             await botClient.SendTextMessageAsync(chatId, "בחר פעולה:", replyMarkup: orderActionsMenu, cancellationToken: cancellationToken);
                         }
+                    }
+                }
+                else if (driverState != null && driverState.StartsWith("awaiting_driver_bid:")) //************ Comments
+                {
+                    var driverId = long.Parse(driverState.Split(':')[1]); //************ Comments
+
+                    if (decimal.TryParse(callbackQuery.Message.Text, out decimal driverBid))
+                    {
+                        await orderRepository.InsertDriverBidAsync(chatId, driverId, driverBid);
+
+                        await botClient.SendTextMessageAsync(
+                            chatId: chatId,
+                            text: "הצעת המחיר שלך נשמרה בהצלחה.",
+                            cancellationToken: cancellationToken
+                        );
+
+                        var customerChatId = await orderRepository.GetCustomerChatIdByBidChatIdAsync(chatId);
+                        if (customerChatId.HasValue)
+                        {
+                            await TypesManual.botClient.SendTextMessageAsync(
+                                chatId: customerChatId.Value,
+                                text: $"נהג הציע מחיר חדש לנסיעה. הצעת מחיר: {driverBid:F2} ₪",
+                                cancellationToken: cancellationToken
+                            );
+
+                            var userState = $"awaiting_bid:{chatId}"; //************ Comments
+                            await _sessionManager.SetSessionData(customerChatId.Value, "UserState", userState); //************ Comments
+                        }
+
+                        // Clear session data for the driver
+                        await _sessionManager.RemoveSessionData(chatId, "DriverUserState"); //************ Comments
+                    }
+                    else
+                    {
+                        await botClient.SendTextMessageAsync(
+                            chatId: chatId,
+                            text: "הצעת מחיר לא תקינה. אנא הזן מספר תקין:",
+                            cancellationToken: cancellationToken
+                        );
                     }
                 }
                 else
@@ -421,9 +477,13 @@ namespace BL.Services.Drivers
                 }
             }
 
+
+
             // Save session data before the method ends
-            SessionManager.SetSessionData(chatId, "UserOrder", userOrder);
-            SessionManager.SetSessionData(chatId, "DriverUserState", driverState); //************ Comments
+            await _sessionManager.SetSessionData(chatId, "UserOrder", userOrder);
+            //Michael:
+            // we set the DriverUserState in each function when we needm there is no use to update again con it will set the old or wrong value
+            //_sessionManager.SetSessionData(chatId, "DriverUserState", driverState); //************ Comments
         }
     }
 }

@@ -1,29 +1,14 @@
-﻿using BL.Services.Drivers;
-using Microsoft.Extensions.Configuration;
-using Newtonsoft.Json.Linq;
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Net.Http;
-using System.Threading;
-using System.Threading.Tasks;
-using Telegram.Bot;
-using Telegram.Bot.Exceptions;
-using Telegram.Bot.Types;
-using Telegram.Bot.Types.Enums;
-using Telegram.Bot.Types.ReplyMarkups;
+﻿using System.Threading.Tasks;
 using telegramB.ErrorHandle;
-using telegramB.Helpers;
 using telegramB.Objects;
 using telegramB.Services;
 using DAL;
-using BL.Services.Customers.Handlers;
 using BL.Services.Customers.Functions;
-using StackExchange.Redis;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Common.Services;
 using BL.Helpers;
+using Microsoft.Extensions.Logging;
 
 namespace telegramB
 {
@@ -37,28 +22,31 @@ namespace telegramB
         private static async Task root(string[] args)
         {
             var host = CreateHostBuilder(args).Build();
-
-            // Resolve and use the SessionManager
             var sessionManager = host.Services.GetRequiredService<SessionManager>();
+            var updateTypeMessage = new UpdateTypeMessage(sessionManager);
 
             var getAddressFromLocation = new GetAddressFromLocationService();
             var orderRepository = new OrderRepository(); // Create an instance of OrderRepository
             var driverRepository = new DriverRepository(); // Create an instance of DriverRepository
 
             var userOrder = new UserOrder();
-            var handleUser = new UserMenuHandle(getAddressFromLocation, orderRepository, driverRepository); // Pass the required arguments
-
+            var handleUser = new UserMenuHandle(getAddressFromLocation, orderRepository, driverRepository, updateTypeMessage, sessionManager);
             // Pass the sessionManager to HandleUserUpdateService
             var handleUpdate = new HandleUserUpdateService(userOrder, handleUser, sessionManager);
 
             var handleError = new HandleError();
-            var botStarter = new starter(handleUpdate, handleError);
+            var botStarter = new starter(handleUpdate, handleError, sessionManager);
 
             await botStarter.StartAsync();
         }
 
         public static IHostBuilder CreateHostBuilder(string[] args) =>
             Host.CreateDefaultBuilder(args)
+                  .ConfigureLogging(logging =>
+                  {
+                      logging.ClearProviders(); // This removes all default logging providers
+                      logging.AddConsole(); // Adds console logging
+                  })
                 .ConfigureServices((hostContext, services) =>
                 {
                     // Register services here

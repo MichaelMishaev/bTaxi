@@ -1,4 +1,5 @@
 ﻿using Common.DTO;
+using StackExchange.Redis;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -21,16 +22,27 @@ namespace telegramB.Menus
                         {
                             new []
                             {
-                                InlineKeyboardButton.WithCallbackData("Order Taxi", "order_taxi")
+                                InlineKeyboardButton.WithCallbackData("חפש נסיעה", "order_taxi")
                             }
                         });
         }
 
+        public static InlineKeyboardMarkup AcceptbidOrMakeNewMenu(UserOrder userOrder)
+        {
+            return new InlineKeyboardMarkup(new[]
+                            {
+                            new InlineKeyboardButton[]
+                            {
+                                InlineKeyboardButton.WithCallbackData("קבל הזמנה", $"accept_order:{userOrder.OrderId}"),
+                                InlineKeyboardButton.WithCallbackData("הצע מחיר חדש", $"bid_order:{userOrder.OrderId}")
+                            }
+                        });
+        }
 
         public static InlineKeyboardMarkup orderActionsMenu(long chatId)
         {
-           return  new InlineKeyboardMarkup(new[]
-                                {
+            return new InlineKeyboardMarkup(new[]
+                                 {
                             new InlineKeyboardButton[]
                             {
                                 InlineKeyboardButton.WithCallbackData("קבל הזמנה", $"accept_order:{chatId}"),
@@ -39,6 +51,20 @@ namespace telegramB.Menus
                             });
 
         }
+
+
+        public static InlineKeyboardMarkup AwaitDriverCustomerBidResponse(long parentId, decimal driverBid, long bidId)
+        {
+            return new InlineKeyboardMarkup(new[]
+            {
+        new[]
+        {
+            InlineKeyboardButton.WithCallbackData("קבל הצעה", $"accept_bid:{parentId}:{bidId}"),
+            InlineKeyboardButton.WithCallbackData("הצע מחיר חדש", $"new_bid:{parentId}:{bidId}")
+        }
+                });
+        }
+
 
         public static InlineKeyboardMarkup AwaitCustomerBidResponse(long parentId, decimal driverBid)
         {
@@ -85,43 +111,14 @@ namespace telegramB.Menus
             return new InlineKeyboardMarkup(ratingButtons);
         }
 
-
-
-
-        public static InlineKeyboardMarkup orderTaxiButtons()
-        {
-            return new InlineKeyboardMarkup(new[]
-                {
-                        new[]
-                        {
-                            InlineKeyboardButton.WithCallbackData("יעד", "to"),
-                            InlineKeyboardButton.WithCallbackData("נקודת איסוף", "from")
-                        },
-                        new[]
-                        {
-                            InlineKeyboardButton.WithCallbackData("מספר טלפון", "phone"),
-                            InlineKeyboardButton.WithCallbackData("הערות", "remarks")
-                        },
-                        new[]
-                        {
-                            InlineKeyboardButton.WithCallbackData("שלח הזמנה", "submit")
-                        },
-                        new[]
-                        {
-                            // Add the new option for default values
-                            InlineKeyboardButton.WithCallbackData("ערכים ברירת מחדל", "default_values") //**********************************
-                        }
-                    });
-        }
-
         public static InlineKeyboardMarkup OrderConfirmationButtons()
         {
             return new InlineKeyboardMarkup(new[]
             {
                 new []
                 {
-                    InlineKeyboardButton.WithCallbackData("שלח הזמנה", "confirm_order"),
-                    InlineKeyboardButton.WithCallbackData("בטל", "cancel_order")
+                    InlineKeyboardButton.WithCallbackData("✅ אישור", "confirm_order"),
+                    InlineKeyboardButton.WithCallbackData("❌ ביטל", "cancel_order")
                 }
             });
         }
@@ -135,6 +132,7 @@ namespace telegramB.Menus
                         InlineKeyboardButton.WithCallbackData("Yes", "confirm_yes"),
                         InlineKeyboardButton.WithCallbackData("No", "confirm_no")
                     }
+
                 });
         }
 
@@ -187,13 +185,13 @@ namespace telegramB.Menus
         }
 
 
-        public static InlineKeyboardMarkup FinishRideButton(int orderId)
+        public static InlineKeyboardMarkup FinishRideButton(int orderId, string toAddress)
         {
             return new InlineKeyboardMarkup(new[]
             {
         new[]
         {
-            InlineKeyboardButton.WithCallbackData("סיום נסיעה", $"finish_ride:{orderId}")
+            InlineKeyboardButton.WithCallbackData($"סיום נסיעה ל {toAddress}", $"finish_ride:{orderId}")
         }
     });
         }
@@ -265,16 +263,31 @@ namespace telegramB.Menus
         {
             return new InlineKeyboardMarkup(new[]
             {
-                new []
+                   new []
                 {
-                    InlineKeyboardButton.WithCallbackData("Stop Receiving Orders", "no_orders")
+                    InlineKeyboardButton.WithCallbackData("לקבל הזמנות ✅", "continue_orders")
                 },
                 new []
                 {
-                    InlineKeyboardButton.WithCallbackData("Continue Receiving Orders", "continue_orders")
+                    InlineKeyboardButton.WithCallbackData("לא לקבל הזמנות ❌", "no_orders")
                 }
             });
         }
+
+        public static ReplyKeyboardMarkup StopReceivingOrdersMenuMultipleUse()
+        {
+            var replyKeyboardMarkup = new ReplyKeyboardMarkup(new[]
+                   {
+                        new KeyboardButton[] { "/stop_orders", "/continue_orders" }
+                   })
+            {
+                ResizeKeyboard = true,
+                OneTimeKeyboard = true
+            };
+
+            return replyKeyboardMarkup;
+        }
+
 
         public static InlineKeyboardMarkup GetOrderActionsMenu(int orderId)
         {

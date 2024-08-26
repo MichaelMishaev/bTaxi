@@ -1,10 +1,13 @@
 ﻿using BL.Helpers;
+using BL.Services.Drivers.StaticFiles;
 using Common.DTO;
 using Common.Services;
 using DAL;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Telegram.Bot;
+using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
 using telegramB;
 using telegramB.Menus;
@@ -16,12 +19,17 @@ namespace BL.Services.Drivers.Functionalities
     public class HandleDriverInput
     {
         OrderRepository orderRepository = new OrderRepository();
-        NotifyCustomer notifyCustomer = new NotifyCustomer(); // Rename to follow naming conventions
-
+        NotifyCustomer notifyCustomer; //= new NotifyCustomer(); 
+        private readonly SessionManager _sessionManager;
+        public HandleDriverInput(SessionManager sessionManager)
+        {
+            _sessionManager = sessionManager;
+            notifyCustomer = new NotifyCustomer(_sessionManager);
+        }
         public async Task HandleUserInput(ITelegramBotClient botClient, long chatId, string messageText, CancellationToken cancellationToken)
         {
             // Retrieve the state from the session storage
-            var driverState = SessionManager.GetSessionData<string>(chatId, "DriverUserState"); //************ Comments
+            var driverState =  await _sessionManager.GetSessionData<string>(chatId, "DriverUserState"); 
 
             // Check if the state is null or empty
             if (string.IsNullOrEmpty(driverState))
@@ -36,44 +44,50 @@ namespace BL.Services.Drivers.Functionalities
 
             // Extract state and extraData from driverState
             string state = driverState.Split(':')[0]; //************ Comments
-            string extraData = driverState.Split(':').Length > 1 ? driverState.Split(':')[1] : null; //************ Comments
+            string extraData = driverState.Split(':').Length > 1 ? driverState.Split(':')[1] : null; 
 
             switch (state)
             {
-                case "awaiting_name":
-                    var driverRegistration = SessionManager.GetSessionData<DriverDTO>(chatId, "DriverRegistration"); //************ Comments
-                    driverRegistration.FullName = messageText;
-                    SessionManager.SetSessionData(chatId, "DriverRegistration", driverRegistration); //************ Comments
+                case keywords.AwaitingNameState:
+                    var driverRegistration = await _sessionManager.GetSessionData<DriverDTO>(chatId, "DriverRegistration"); // Retrieve the current driver registration data from the session
+                    if(driverRegistration == null) driverRegistration = new DriverDTO();
+                    driverRegistration.FullName = messageText; // Set the full name from the user's input
+                    await _sessionManager.SetSessionData(chatId, "DriverRegistration", driverRegistration); // Save the updated registration data back to the session
 
+                    // Set the driver state to the next step in the registration process
+                    driverState = keywords.AwaitingCarDetailsState;
+                    await _sessionManager.SetSessionData(chatId, "DriverUserState", driverState); // Save the updated state to the session
+
+                    // Prompt the driver for the next piece of information
                     await BotDriversResponseService.SendTextMessageAsync(botClient, chatId, "דגם וצבע הרכב? (כדי שהלקוח יזהה אותך, כן?)", cancellationToken);
-                    driverState = "awaiting_car_details"; //************ Comments
                     break;
 
-                case "awaiting_car_details":
-                    driverRegistration = SessionManager.GetSessionData<DriverDTO>(chatId, "DriverRegistration"); //************ Comments
+                case keywords.AwaitingCarDetailsState:
+                    driverRegistration = await _sessionManager.GetSessionData<DriverDTO>(chatId, "DriverRegistration"); //************ Comments
                     driverRegistration.CarDetails = messageText;
-                    SessionManager.SetSessionData(chatId, "DriverRegistration", driverRegistration); //************ Comments
+                    await _sessionManager.SetSessionData(chatId, "DriverRegistration", driverRegistration); //************ Comments
 
-                    await BotDriversResponseService.SendTextMessageAsync(botClient, chatId, "מה מספר הטלפון שלך?", cancellationToken);
+                    await BotDriversResponseService.SendTextMessageAsync(botClient, chatId, "יש להזין מספר טלפון: ", cancellationToken);
                     driverState = "awaiting_phone_number"; //************ Comments
                     break;
 
                 case "awaiting_phone_number":
-                    driverRegistration = SessionManager.GetSessionData<DriverDTO>(chatId, "DriverRegistration"); //************ Comments
+                    driverRegistration = await _sessionManager.GetSessionData<DriverDTO>(chatId, "DriverRegistration"); //************ Comments
                     driverRegistration.PhoneNumber = messageText;
-                    SessionManager.SetSessionData(chatId, "DriverRegistration", driverRegistration); //************ Comments
+                    await _sessionManager.SetSessionData(chatId, "DriverRegistration", driverRegistration); //************ Comments
 
                     var isValidPhoneCopy = await Validators.PhoneValidator(messageText);
                     if (!isValidPhoneCopy)
                     {
                         await botClient.SendTextMessageAsync(
                             chatId: chatId,
-                            text: "אנא הזן מספר טלפון תקין.",
+                            text: "אנא הזן מספר טלפון תקין:",
                             cancellationToken: cancellationToken
                         );
                     }
                     else
                     {
+                        driverState = "awaiting_confirmation";
                         await SendRegistrationSummary(botClient, chatId, cancellationToken);
                     }
                     break;
@@ -82,7 +96,7 @@ namespace BL.Services.Drivers.Functionalities
                     if (int.TryParse(messageText, out int etaMinutes) && int.TryParse(extraData, out int orderId))
                     {
                         // Clear session data after processing
-                        SessionManager.RemoveSessionData(chatId, "DriverUserState"); //************ Comments
+                        await _sessionManager.RemoveSessionData(chatId, "DriverUserState"); //************ Comments
 
                         bool isAssigned = await orderRepository.AssignOrderToDriverAsync(orderId, chatId);
 
@@ -93,14 +107,14 @@ namespace BL.Services.Drivers.Functionalities
                             await BotDriversResponseService.SendTextMessageAsync(
                                 botClient,
                                 chatId,
-                                $"הלקוח עודכן ומצפה לך בעוד {etaMinutes} דקות.\n *שים לב:* לכל עדכון יש ליצור קשר ישירות עם הלקוח.",
+                                $"הלקוח עודכן ומצפה לך בעוד {etaMinutes} דקות \n *שים לב:* לכל עדכון יש ליצור קשר ישירות עם הלקוח",
                                 cancellationToken,
                                 ParseMode.MarkdownV2
                             );
                         }
                         else
                         {
-                            await BotDriversResponseService.SendTextMessageAsync(botClient, chatId, "התרחשה שגיאה במהלך שמירת ההזמנה.", cancellationToken);
+                            await BotDriversResponseService.SendTextMessageAsync(botClient, chatId, "התרחשה שגיאה במהלך שמירת ההזמנה", cancellationToken);
                         }
                     }
                     else
@@ -112,47 +126,78 @@ namespace BL.Services.Drivers.Functionalities
                 // Adjusted section in HandleDriverUpdateAsync method
                 case "awaiting_driver_bid":
                     {
-                        // Avoid variable conflict by renaming
                         if (decimal.TryParse(messageText, out decimal driverBidAmount))
                         {
-                            var stateData = driverState.Split(':'); //************ Comments
-                            var parentId = long.Parse(stateData[1]); //************ Comments
+                            var stateData = driverState.Split(':');
+                            var orderIdFromState = long.Parse(stateData[1]);
                             var driverId = chatId;
 
                             // Retrieve the customer ID from the parent bid
-                            var customerChatId = await orderRepository.GetCustomerChatIdByBidChatIdAsync(parentId);
+                            var result = await orderRepository.GetCustomerChatIdAndBidIdByOrderIdAsync(orderIdFromState);
+
+                            var customerChatId = result.UserId;
+                            var parentBidID = result.BidId;
 
                             if (customerChatId.HasValue)
                             {
                                 // Insert the driver's bid into the database
-                                long bidId = await orderRepository.InsertBidAsync(parentId, driverId, driverId, customerChatId.Value, driverBidAmount, true);
+                                long bidId = await orderRepository.InsertBidAsync(parentBidID, driverId, driverId, customerChatId.Value, driverBidAmount, true);
 
-                                var bidOptions = MenuMethods.AwaitCustomerBidResponse(parentId, driverBidAmount);
+                                string sessionKey = $"{orderIdFromState}:driver:{driverId}";
+                                await _sessionManager.SetSessionData(sessionKey, "DriverChatId", driverId);
+
+
+                                bool isAssigned = await orderRepository.CheckOrderAssignedAsync((int)orderIdFromState);
+
+                                if (isAssigned)
+                                {
+                                        await   botClient.SendTextMessageAsync(
+                                                chatId: customerChatId.Value,
+                                                text: "מצטערים, ההזמנה כבר נלקחה על ידי נהג אחר.",
+                                                cancellationToken: cancellationToken
+                                           );
+                                    break;
+                                }
+
+
+
+                                // Generate bid options with contextual parameters
+                                //string driverIdString = driverId.ToString();
+                                var bidOptions = MenuMethods.AwaitDriverCustomerBidResponse(orderIdFromState, driverBidAmount, bidId);
+
+
+                                string maskedDriver = $"{driverId % 1000}******";
 
                                 await TypesManual.botClient.SendTextMessageAsync(
                                     chatId: customerChatId.Value,
-                                    text: $"נהג הציע מחיר חדש לנסיעה. הצעת מחיר: {driverBidAmount:F2} ₪",
+                                    text: $"נהג {maskedDriver} הציע מחיר חדש לנסיעה. הצעת מחיר: {driverBidAmount:F2} ₪",
                                     replyMarkup: bidOptions,
                                     cancellationToken: cancellationToken
                                 );
 
+                                await botClient.SendTextMessageAsync(
+                                    chatId: chatId,
+                                    text: "הודעה נשלחה ללקוח",
+                                    cancellationToken: cancellationToken
+                                );
+
                                 // Update the CurrentStep in the database for the customer order
-                                await orderRepository.UpdateOrderStepAsync(customerChatId.Value, "awaiting_bid");
+                                //await orderRepository.UpdateOrderStepAsync(customerChatId.Value, "awaiting_bid");
 
                                 // Update the userState and userOrder
-                                var customerOrder = SessionManager.GetSessionData<UserOrder>(customerChatId.Value, "UserOrder");
+                                var customerOrder = await _sessionManager.GetSessionData<UserOrder>(customerChatId.Value, "UserOrder");
                                 if (customerOrder != null)
                                 {
                                     customerOrder.CurrentStep = "awaiting_bid";
-                                    var userState = $"awaiting_bid:{parentId}"; //************ Comments
+                                    var userState = $"awaiting_bid:{orderIdFromState}";
 
-                                    SessionManager.SetSessionData(customerChatId.Value, "UserState", userState); // Save session data
-                                    SessionManager.SetSessionData(customerChatId.Value, "UserOrder", customerOrder); // Save session data
+                                    await _sessionManager.SetSessionData(customerChatId.Value, "UserState", userState);
+                                    await _sessionManager.SetSessionData(customerChatId.Value, "UserOrder", customerOrder);
                                 }
                             }
 
                             // Clear driver's state after setting the customer state
-                            SessionManager.RemoveSessionData(chatId, "DriverUserState"); // Clear session data for driver //************ Comments
+                            await _sessionManager.RemoveSessionData(chatId, "DriverUserState");
                         }
                         else
                         {
@@ -164,6 +209,9 @@ namespace BL.Services.Drivers.Functionalities
                         }
                         break;
                     }
+
+
+
 
                 case "awaiting_bid": //************ Comments
                     if (decimal.TryParse(messageText, out decimal newDriverBid)) // Renamed to newDriverBid
@@ -193,11 +241,11 @@ namespace BL.Services.Drivers.Functionalities
 
                             // Update the userStates dictionary for customer
                             var newUserState = $"awaiting_bid:{parentId}"; // Update state to awaiting customer bid
-                            SessionManager.SetSessionData(customerChatId.Value, "UserState", newUserState); // Save session data
+                            await _sessionManager.SetSessionData(customerChatId.Value, "UserState", newUserState); // Save session data
                         }
 
                         // Clear driver's state after setting the customer state
-                        SessionManager.RemoveSessionData(chatId, "DriverUserState"); // Clear session data for driver //************ Comments
+                        await _sessionManager.RemoveSessionData(chatId, "DriverUserState"); // Clear session data for driver //************ Comments
                     }
                     else
                     {
@@ -211,22 +259,24 @@ namespace BL.Services.Drivers.Functionalities
             }
 
             // Save the updated state in the session storage
-            SessionManager.SetSessionData(chatId, "DriverUserState", driverState); //************ Comments
+            await _sessionManager.SetSessionData(chatId, "DriverUserState", driverState); //************ Comments
         }
 
         private async Task SendRegistrationSummary(ITelegramBotClient botClient, long chatId, CancellationToken cancellationToken)
         {
-            var driverRegistration = SessionManager.GetSessionData<DriverDTO>(chatId, "DriverRegistration"); //************ Comments
+            var driverRegistration = await _sessionManager.GetSessionData<DriverDTO>(chatId, "DriverRegistration"); //************ Comments
             var summaryText = $"סיכום הרשמה:\n" +
                               $"שם מלא: {driverRegistration.FullName}\n" +
                               $"פרטי רכב: {driverRegistration.CarDetails}\n" +
                               $"מספר טלפון: {driverRegistration.PhoneNumber}\n\n" +
-                              "האם כל הפרטים נכונים?";
+                              $"שימו ❤️\n\n" +
+                              $"אם הפרטים שגויים לא תוכלו לאסוף נוסעים 😔\n\n" +
+                              $"האם כל הפרטים נכונים? ";
 
             await BotDriversResponseService.SendRegistrationSummaryAsync(botClient, chatId, summaryText, cancellationToken);
 
-            var driverState = "awaiting_confirmation"; //************ Comments
-            SessionManager.SetSessionData(chatId, "DriverUserState", driverState); //************ Comments
+            //var driverState = "awaiting_confirmation"; //************ Comments
+            //_sessionManager.SetSessionData(chatId, "DriverUserState", driverState); //************ Comments
         }
     }
 }

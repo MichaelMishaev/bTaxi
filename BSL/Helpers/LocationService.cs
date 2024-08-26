@@ -3,11 +3,14 @@ using Common.Services;
 using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net.Http;
+using System.Reflection.Metadata.Ecma335;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Telegram.Bot;
+using telegramB.Menus;
 using telegramB.Objects;
 
 namespace BL.Helpers
@@ -16,11 +19,12 @@ namespace BL.Helpers
     {
         private const string NOMINATIM_API = "https://nominatim.openstreetmap.org/search";
         private readonly HttpClient _httpClient;
-
-        public LocationService()
+        private readonly SessionManager _sessionManager;
+        public LocationService(SessionManager sessionManager)
         {
             _httpClient = new HttpClient();
             _httpClient.DefaultRequestHeaders.Add("User-Agent", "IsraelDistanceCalculator/1.0");
+            _sessionManager = sessionManager;
         }
 
         public async Task<double> CalculateDistance(AddressDTO location1, AddressDTO location2, ITelegramBotClient botClient, CancellationToken cancellationToken, long chatId)
@@ -48,64 +52,106 @@ namespace BL.Helpers
             string address = $"{location.Street} {location.StreetNumber}, {location.City}";
             await botClient.SendTextMessageAsync(
                 chatId: chatId,
-                text: $"הכתובת {address} שגויה. אנא הזן שוב את הכתובת.",
+                text: $"הכתובת {address} שגויה. יש להתחיל תהליך מחדש.",
+                replyMarkup: MenuMethods.mainMenuButtons(),
                 cancellationToken: cancellationToken
             );
 
-            // Restart the address input process
-            var userOrder = SessionManager.GetSessionData<UserOrder>(chatId, "UserOrder");
-            userOrder.CurrentStep = addressType == "from" ? "enter_city" : "enter_to_city"; //************** Set the current step based on address type
-            SessionManager.SetSessionData(chatId, "UserOrder", userOrder);
-
-            await botClient.SendTextMessageAsync(
-                chatId: chatId,
-                text: "הכנס עיר:",
-                cancellationToken: cancellationToken
-            );
+            // Reset the session data and guide the user to start a new order
+            await _sessionManager.SetSessionData<UserOrder>(chatId, "UserOrder", null); //************** Reset UserOrder session data
+            await _sessionManager.SetSessionData<string>(chatId, "UserState", null); //************** Reset UserState session data
         }
         private async Task<(double Lat, double Lon)?> GetCoordinates(string location)
+        {
+         if (location.Contains("נמל תעופה בן גוריון")) { location = "נמל תעופה בן גוריון"; }
+           var variations = new[]
             {
-                // Try different variations of the address
-                var variations = new[]
-                {
-                    $"{location}, Israel",
-                    location,
-                    $"{location}, West Bank",
-                    $"{location}, Palestine"
-                };
+        $"{location}, Israel",
+        location,
+        $"{location}, West Bank",
+        $"{location}, Palestine"
+    };
 
-                foreach (var variation in variations)
+            foreach (var variation in variations)
+            {
+                var encodedLocation = Uri.EscapeDataString(variation);
+                var url = $"{NOMINATIM_API}?q={encodedLocation}&format=json&limit=1&countrycodes=IL,PS";
+
+                try
                 {
-                    var encodedLocation = Uri.EscapeDataString(variation);
-                    var url = $"{NOMINATIM_API}?q={encodedLocation}&format=json&limit=1&countrycodes=IL,PS";
+                    var response = await _httpClient.GetAsync(url);
+                    response.EnsureSuccessStatusCode();
+
+                    var content = await response.Content.ReadAsStringAsync();
+                    var results = JArray.Parse(content);
+
+                    if (results.Count > 0)
+                    {
+                        var lat = results[0]["lat"].Value<double>();
+                        var lon = results[0]["lon"].Value<double>();
+
+                        Console.WriteLine($"Coordinates for {location}: Lat {lat}, Lon {lon}");
+                        return (lat, lon);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error geocoding {variation}: {ex.Message}");
+                }
+            }
+
+            // Try removing the first word from the location and retrying
+            var words = location.Split(' ');
+            for (int i = 1; i < words.Length; i++)
+            {
+                var newVariation = string.Join(' ', words.Skip(i));
+                if (!string.IsNullOrEmpty(newVariation))
+                {
+                    var encodedNewVariation = Uri.EscapeDataString(newVariation);
+                    var newUrl = $"{NOMINATIM_API}?q={encodedNewVariation}&format=json&limit=1&countrycodes=IL,PS";
 
                     try
                     {
-                        var response = await _httpClient.GetAsync(url);
-                        response.EnsureSuccessStatusCode();
+                        var newResponse = await _httpClient.GetAsync(newUrl);
+                        newResponse.EnsureSuccessStatusCode();
 
-                        var content = await response.Content.ReadAsStringAsync();
-                        var results = JArray.Parse(content);
+                        var newContent = await newResponse.Content.ReadAsStringAsync();
+                        var newResults = JArray.Parse(newContent);
 
-                        if (results.Count > 0)
+                        if (newResults.Count > 0)
                         {
-                            var lat = results[0]["lat"].Value<double>();
-                            var lon = results[0]["lon"].Value<double>();
+                            //if address fucked up
+                            if(validateNewAddress(newVariation) == null) return null;
 
-                            Console.WriteLine($"Coordinates for {location}: Lat {lat}, Lon {lon}");
-                            return (lat, lon);
+                            var newLat = newResults[0]["lat"].Value<double>();
+                            var newLon = newResults[0]["lon"].Value<double>();
+
+                            Console.WriteLine($"Coordinates for {newVariation}: Lat {newLat}, Lon {newLon}");
+                            return (newLat, newLon);
                         }
                     }
                     catch (Exception ex)
                     {
-                        Console.WriteLine($"Error geocoding {variation}: {ex.Message}");
+                        Console.WriteLine($"Error geocoding {newVariation}: {ex.Message}");
                     }
                 }
+            }
 
-                Console.WriteLine($"No results found for location: {location}");
+            Console.WriteLine($"No results found for location: {location}");
+            return null;
+        }
+
+        private static string  validateNewAddress(string location)
+        {
+            string result = location;
+            if (string.IsNullOrEmpty(location) || location.Split(',').Length < 2)
+            {
+                Console.WriteLine($"No valid address found for location: {location}");
+                // Return a specific indicator for invalid address
                 return null;
-           }
-        
+            }
+            return location;
+        }
 
         private async Task<double> CalculateHaversineDistanceAsync((double lat, double lon) point1, (double lat, double lon) point2)
         {
