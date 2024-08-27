@@ -64,6 +64,11 @@ namespace telegramB
                     else if(messageText == "/help")
                     {
                         Console.WriteLine("HELPPPP");
+                        await botClient.SendTextMessageAsync(
+                             chatId: chatId,
+                             text: "הכל יהיה בסדר",
+                             cancellationToken: cancellationToken
+                         );
                     }
                     else if (messageText == "/test")
                     {

@@ -27,6 +27,7 @@ namespace BL.Services.Customers.Functions
         private readonly DriverRepository _driverRepository;
         private readonly UpdateTypeMessage _updateTypeMessage;
         private readonly SessionManager _sessionManager;
+        private UserRepository _userRepository;
 
         public UserMenuHandle(GetAddressFromLocationService getAddressFromLocation, OrderRepository orderRepository, DriverRepository driverRepository, UpdateTypeMessage updateTypeMessage, SessionManager sessionManager)
         {
@@ -35,6 +36,7 @@ namespace BL.Services.Customers.Functions
             _driverRepository = driverRepository;
             _updateTypeMessage = updateTypeMessage;
             _sessionManager = sessionManager;
+            _userRepository = new UserRepository();
         }
 
         public async Task HandleUserInput(long chatId, string input, CancellationToken cancellationToken, ITelegramBotClient botClient, UserOrder userOrder, string userState, Message message, bool isDriver = false)
@@ -344,7 +346,13 @@ namespace BL.Services.Customers.Functions
                             text: "רק רגע,  מחשב מחיר מונית רגילה......",
                             cancellationToken: cancellationToken
                         );
-
+                        await botClient.SendTextMessageAsync(
+                                chatId: chatId,
+                                text: @"* מרחק ומחיר משוערך יכול להיות שגוי, אנחנו עובדים על זה  🖥 *", // Surround text with asterisks (*)
+                                parseMode: ParseMode.MarkdownV2, // Specify MarkdownV2 parsing
+                                cancellationToken: cancellationToken
+                            );
+                        await _userRepository.UpdateUserPhoneNomberAsync(chatId,input);
                         // Display order summary with confirmation buttons
                         var res = await DisplayAndSubmitOrder.DisplayOrderSummary(chatId, botClient, userOrder, cancellationToken);
 

@@ -16,6 +16,7 @@ using Common.Services;
 using telegramB.Objects;
 using BL.Services.Drivers.Functionalities;
 using BL.Services.Drivers.StaticFiles;
+using BL.Helpers.logger;
 
 namespace BL.Services.Drivers
 {
@@ -58,17 +59,14 @@ namespace BL.Services.Drivers
                 ? await driverRepository.isApprovedDriver(update.CallbackQuery.From.Id)
                 : await driverRepository.isApprovedDriver(update.Message.From.Id);
 
-            if (driverExists && isApprovedDriver)
-            {
-                //MenuMethods.StopReceivingOrdersMenuMultipleUse();
-            }
+
             if ((update.CallbackQuery == null) && (update.Message == null))
             {
                 Console.WriteLine("all nulls checkpoint");
                 return;
             }
 
-
+            
 
             var buser = update.CallbackQuery != null ? update.CallbackQuery.From.Id : update.Message.From.Id;
             if (buser == 5164987026)
@@ -91,7 +89,7 @@ namespace BL.Services.Drivers
                     {
                         await BotDriversResponseService.SendMainMenuAsync(TypesManual.botDriver, chatId, cancellationToken);
                     }
-                    else if (driverState != null)
+                    else if (driverState != null && (messageText != "/get_orders" && messageText != "/no_orders" && messageText != "/help"))
                     {
                         await handleDriverInput.HandleUserInput(TypesManual.botDriver, chatId, messageText, cancellationToken);
                     }
@@ -101,8 +99,10 @@ namespace BL.Services.Drivers
                         await BotDriversResponseService.StartRegistration(TypesManual.botDriver, chatId, message.MessageId, cancellationToken);
                     }
 
+
                     else if (driverExists && isApprovedDriver)
-                    {  
+                    {
+                        Console.WriteLine($"Driver {chatId} used menu ");
                         switch (messageText)
                         {
                             case "/get_orders":
@@ -159,6 +159,13 @@ namespace BL.Services.Drivers
                         await BotDriversResponseService.SendStartOrdersMenuAsync(TypesManual.botDriver, chatId, cancellationToken);
                         return;
                     }
+                    ConsolePrintService.driverRegestration($"New Driver registered: {chatId}");
+                    //Console.ForegroundColor = ConsoleColor.Green;
+                    //Console.WriteLine("---------------------------------");
+                    //Console.WriteLine($"New Driver registered: {chatId}");
+                    //Console.WriteLine("---------------------------------");
+                    //Console.ResetColor();
+
                     await driverRegistration.StartRegistration(TypesManual.botDriver, chatId, messageId, cancellationToken);
                 }
                 //else if (callbackQuery.Data == "start_orders")
@@ -223,13 +230,19 @@ namespace BL.Services.Drivers
                 }
                 else if (callbackQuery.Data.StartsWith($"{keywords.AcceptBid}:"))
                 {
+                   
                     var data = callbackQuery.Data.Split(':');
                     var bidChatId = long.Parse(data[1]);
                     var driverBid = decimal.Parse(data[2]);
 
+                    
+
                     await orderRepository.MarkBidAsTakenAsync(bidChatId);
 
                     var bidDetails = await orderRepository.GetBidDetailsAsync(bidChatId);
+
+                    ConsolePrintService.driverRegestration($"Driver {bidDetails.DriverId} accepted bid");
+
                     await botClient.SendTextMessageAsync(
                         chatId: bidDetails.DriverId,
                         text: $"הצעת המחיר שלך בסך {driverBid:F2} ₪ התקבלה! פרטי הלקוח:\n" +

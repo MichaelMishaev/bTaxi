@@ -61,5 +61,35 @@ namespace DAL
                 throw;
             }
         }
+
+        public async Task UpdateUserPhoneNomberAsync(long userChatId, string phoneNumber)
+        {
+            string query = @$"UPDATE btrip.user SET phoneNumber = @phoneNumber where userId = @userChatId  AND phoneNumber IS NULL";
+            try
+            {
+                using (var connection = await _context.GetOpenConnectionAsync())
+                {
+                    using (var command = new MySqlCommand(query, connection))
+                    {
+                        command.Parameters.AddWithValue("@phoneNumber", phoneNumber);
+                        command.Parameters.AddWithValue("@userChatId", userChatId);
+
+                        await command.ExecuteNonQueryAsync();
+                    }
+                }
+            }
+            catch (MySqlException ex)
+            {
+                Console.WriteLine($"error in: UpdateUserPhoneNomberAsync");
+                Console.WriteLine($"MySQL error: {ex.Message}");
+                
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"error in: UpdateUserPhoneNomberAsync");
+                Console.WriteLine($"General error: {ex.Message}");
+                
+            }
+        }
     }
 }

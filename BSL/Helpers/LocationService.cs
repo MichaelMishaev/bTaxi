@@ -1,4 +1,5 @@
-﻿using Common.DTO;
+﻿using BL.Helpers.logger;
+using Common.DTO;
 using Common.Services;
 using Newtonsoft.Json.Linq;
 using System;
@@ -34,26 +35,32 @@ namespace BL.Helpers
 
             if (coord1 == null)
             {
-                await NotifyInvalidAddress(chatId, botClient, location1, "from", cancellationToken);
-                return -1;
+                //await NotifyInvalidAddress(chatId, botClient, location1, "from", cancellationToken);
+                ConsolePrintService.addressErrorPrint($"From address: {location1.Street}{location1.StreetNumber} , {location1.City}");
             }
             if (coord2 == null)
             {
-                await NotifyInvalidAddress(chatId, botClient, location2, "to", cancellationToken);
-                return -1;
+                //await NotifyInvalidAddress(chatId, botClient, location2, "to", cancellationToken);
+                ConsolePrintService.addressErrorPrint($"To address: {location2.Street}{location2.StreetNumber} , {location2.City}");
             }
-
+            if (coord1 == null || coord2 == null)
+            {
+                string wrongAddresses = $"הכתובת {location1.Street}{location1.StreetNumber} או {location2.Street}{location2.StreetNumber} , {location2.City} לא נמצאה בשירות המפות, אין אפשרות לחשב מחיר ממוצע של מונית רגילה.";
+                await NotifyInvalidAddress(chatId, botClient, wrongAddresses, "to", cancellationToken);
+                return 0;
+            }
             return await CalculateHaversineDistanceAsync(coord1.Value, coord2.Value);
         }
 
 
-        private async Task NotifyInvalidAddress(long chatId, ITelegramBotClient botClient, AddressDTO location, string addressType, CancellationToken cancellationToken)
+        private async Task NotifyInvalidAddress(long chatId, ITelegramBotClient botClient, string location, string addressType, CancellationToken cancellationToken)
         {
-            string address = $"{location.Street} {location.StreetNumber}, {location.City}";
+            //string address = $"{location.Street} {location.StreetNumber}, {location.City}";
+            string formattedLocation = location.Replace(",", ",\n");
             await botClient.SendTextMessageAsync(
                 chatId: chatId,
-                text: $"הכתובת {address} שגויה. יש להתחיל תהליך מחדש.",
-                replyMarkup: MenuMethods.mainMenuButtons(),
+                text: @$"{formattedLocation}",
+           //     replyMarkup: MenuMethods.mainMenuButtons(),
                 cancellationToken: cancellationToken
             );
 
@@ -90,7 +97,7 @@ namespace BL.Helpers
                         var lat = results[0]["lat"].Value<double>();
                         var lon = results[0]["lon"].Value<double>();
 
-                        Console.WriteLine($"Coordinates for {location}: Lat {lat}, Lon {lon}");
+                        //Console.WriteLine($@"Coordinates for {location}: Lat {lat}, Lon {lon}");
                         return (lat, lon);
                     }
                 }

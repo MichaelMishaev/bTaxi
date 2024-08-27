@@ -27,7 +27,7 @@ namespace telegramB.Helpers
             var distanceKm = await LS.CalculateDistance(userOrder.FromAddress, userOrder.ToAddress, botClient, cancellationToken, chatId);
             var distanceKmInt = (int)Math.Floor(distanceKm);
 
-            if (distanceKm == -1) return false;
+            if (distanceKm == -1) return true ;
 
             var fareCalculator = new TaxiFareCalculate(new FareStructure
             {
@@ -46,13 +46,13 @@ namespace telegramB.Helpers
             var rideDurationHours = distanceKm / averageSpeedKmh;
             var rideDurationMinutes = rideDurationHours * 60.0;
 
-            var fare = fareCalculator.CalculateFare(fareType, distanceKm, rideDurationMinutes);
+            var fare = distanceKm==0? distanceKm: fareCalculator.CalculateFare(fareType, distanceKm, rideDurationMinutes);
             var fareDetails = $"מחיר משוער של מונית רגילה הינו: {fare:F2} ₪\n";
 
             var orderSummary = $"סיכום ההזמנה שלך:\n" +
                               $"נקודת איסוף: {userOrder.FromAddress.GetFormattedAddress()}\n" +
                               $"יעד: {userOrder.ToAddress.GetFormattedAddress()}\n" +
-                              $"מרחק משוערך : {distanceKmInt} קמ\n " +
+                              $"מרחק משוער : {distanceKmInt} קמ\n " +
                               fareDetails +
                               $"מספר טלפון: {userOrder.PhoneNumber}";
 

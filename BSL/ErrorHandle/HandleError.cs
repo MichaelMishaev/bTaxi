@@ -1,4 +1,5 @@
-﻿using System;
+﻿using BL.Helpers.logger;
+using System;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
@@ -43,9 +44,8 @@ namespace telegramB.ErrorHandle
                 }
                 else
                 {
-                    Console.ForegroundColor = ConsoleColor.Blue;
-                    Console.WriteLine("An unexpected error occurred. Continuing operation...");
-                    Console.ResetColor();
+                    ConsolePrintService.exceptionErrorPrint("An unexpected error occurred. Continuing operation...");
+
                 }
             }
             catch (Exception ex)

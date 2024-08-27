@@ -140,7 +140,8 @@ namespace DAL
                             $"BidAmount: {userOrder.BidAmount}, " +
                             $"CurrentStep: {userOrder.CurrentStep}, " +
                             $"Remarks: {userOrder.Remarks} " ;
-            Console.WriteLine($"run UpdateOrderWithNewBidAsync, param {userOrderDetails}");
+            Console.WriteLine($"run UpdateOrderWithNewBidAsync, param From: {userOrder.FromAddress.GetFormattedAddress()} To {userOrder.ToAddress.GetFormattedAddress()}" +
+                $" Order: {userOrder.OrderId}, {DateTime.Now}");
             string updateOrderQuery = @"
                         UPDATE `btrip`.`order`
                         SET  `CurrentStep` = @CurrentStep
@@ -570,7 +571,7 @@ namespace DAL
 
         public async Task<long> InsertBidAsync(long parentId, long chatId, long driverId, long customerId, decimal bidAmount, bool isDriver)
         {
-            Console.WriteLine($"run InsertBidAsync customerId{customerId}");
+            Console.WriteLine($"run InsertBidAsync customerId {customerId} , {DateTime.Now}");
             long bidId = 0;
             string query = string.Empty;
             query = "INSERT INTO `bids` (`parentId`, `chatId`, `driverId`, `customerId`, `driverBid`, `customerBid`, `isDriver`) " +
@@ -612,7 +613,7 @@ namespace DAL
 
         public async Task UpdateBidParentIdAsync(long bidId, long parentId)
         {
-            Console.WriteLine("Rn UpdateBidParentIdAsync");
+            Console.WriteLine($"Rnn UpdateBidParentIdAsync {DateTime.Now}");
             string query = "UPDATE `bids` SET `parentId` = @parentId WHERE `id` = @bidId;";
 
             try

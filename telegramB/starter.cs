@@ -1,6 +1,7 @@
 ﻿using BL.Helpers;
 using BL.Services.Drivers;
 using Common.Services;
+using Microsoft.Extensions.Configuration;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using StackExchange.Redis;
@@ -23,17 +24,6 @@ namespace telegramB
 
     public class starter
     {
-
-        // Set a value in Redis
-        //db.StringSet("myKey", "myValue");
-
-        //// Get the value from Redis
-        //string value = db.StringGet("myKey");
-
-        //Console.WriteLine($"Value retrieved from Redis: {value}");
-
-        //redis.Close();
-
        
         private const string UserChatIdsFilePath = "userChatIds.json"; // Path to save the file
         private Timer _saveTimer;
@@ -70,8 +60,13 @@ namespace telegramB
 
         public async Task StartAsync()
         {
-            TypesManual.botClient = new TelegramBotClient(TypesManual.BotToken);
-            TypesManual.botDriver = new TelegramBotClient(TypesManual.DriverBotToken);
+            var config = new ConfigurationBuilder()
+                .SetBasePath(AppContext.BaseDirectory)
+                .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
+                .Build();
+
+            TypesManual.botClient = new TelegramBotClient(config["bots:BotToken"]);
+            TypesManual.botDriver = new TelegramBotClient(config["bots:DriverBotToken"]);
 
             ApprovalNotifierCallback();
             //var cts = new CancellationTokenSource();
