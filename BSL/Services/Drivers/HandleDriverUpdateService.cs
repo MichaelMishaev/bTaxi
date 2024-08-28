@@ -322,7 +322,7 @@ namespace BL.Services.Drivers
                             text: "מצטערים, ההזמנה כבר נלקחה על ידי נהג אחר.",
                             cancellationToken: cancellationToken
                         );
-                        await botClient.DeleteMessageAsync(chatId, callbackQuery.Message.MessageId, cancellationToken);
+                        await botClient.DeleteMessageAsync(chatId,  callbackQuery.Message.MessageId, cancellationToken);
                         return;
                     }
                     // Store the mapping between driver ID and client chat ID

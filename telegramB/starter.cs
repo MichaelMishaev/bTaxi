@@ -67,6 +67,7 @@ namespace telegramB
 
             TypesManual.botClient = new TelegramBotClient(config["bots:BotToken"]);
             TypesManual.botDriver = new TelegramBotClient(config["bots:DriverBotToken"]);
+            TypesManual.botGudenko = new TelegramBotClient(config["bots:gudenkoBotToken"]);
 
             ApprovalNotifierCallback();
             //var cts = new CancellationTokenSource();
@@ -90,13 +91,22 @@ namespace telegramB
                 cancellationToken: cts.Token
             );
 
+            TypesManual.botGudenko.StartReceiving(
+                    _handleDriverService.HandleDriverUpdateAsync,
+                    _handleError.HandleErrorAsync,
+                    receiverOptions,
+                    cancellationToken: cts.Token
+                );
+
             var userBot = await TypesManual.botClient.GetMeAsync();
             var driverBot = await TypesManual.botDriver.GetMeAsync();
+            var gudenkoBot = await TypesManual.botDriver.GetMeAsync();
             Console.WriteLine($"Bot @{userBot.Username} is running...");
             Console.WriteLine($"Bot @{driverBot.Username} is running...");
+            Console.WriteLine($"Bot @{gudenkoBot.Username} is running...");
 
             // Initialize the ApprovalNotifier
-           // var approvalNotifier = new ApprovalNotifier(TypesManual.botDriver, cts.Token);
+            // var approvalNotifier = new ApprovalNotifier(TypesManual.botDriver, cts.Token);
 
             Console.WriteLine("Press any key to exit");
             Console.ReadKey();

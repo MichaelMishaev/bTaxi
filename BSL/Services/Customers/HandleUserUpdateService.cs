@@ -54,6 +54,14 @@ namespace telegramB
                     var chatId = message.Chat.Id;
                     var messageText = message?.Text;
 
+                    if (messageText == "/status")
+                    {
+                        await TypesManual.botGudenko.SendTextMessageAsync(
+                           chatId: "-1002194149620",
+                           text: "הכל יהיה בסדר",
+                           cancellationToken: cancellationToken
+                       );
+                    }
                     if (messageText == "/start")
                     {
                         await _sessionManager.RemoveSessionData(chatId, "UserState");

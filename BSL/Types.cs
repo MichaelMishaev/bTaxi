@@ -14,6 +14,7 @@ namespace telegramB
         public static readonly string GroupInviteLink = "";
         public static TelegramBotClient botClient;
         public static TelegramBotClient botDriver;
+        public static TelegramBotClient botGudenko;
         public static Dictionary<long, UserOrder> userOrders = new Dictionary<long, UserOrder>(); // Define userOrders dictionary
     }
 }
