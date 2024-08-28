@@ -107,7 +107,7 @@ namespace BL.Services.Drivers.Functionalities
                             await BotDriversResponseService.SendTextMessageAsync(
                                 botClient,
                                 chatId,
-                                $"הלקוח עודכן ומצפה לך בעוד {etaMinutes} דקות \n *שים לב:* לכל עדכון יש ליצור קשר ישירות עם הלקוח",
+                                $"הלקוח עודכן  📥 ומצפה לך בעוד {etaMinutes} דקות 🕑 \n *שים לב:* לכל עדכון יש ליצור קשר ישירות עם הלקוח ‼️",
                                 cancellationToken,
                                 ParseMode.MarkdownV2
                             );
@@ -152,7 +152,7 @@ namespace BL.Services.Drivers.Functionalities
                                 if (isAssigned)
                                 {
                                         await   botClient.SendTextMessageAsync(
-                                                chatId: customerChatId.Value,
+                                                chatId: driverId,//customerChatId.Value,
                                                 text: "מצטערים, ההזמנה כבר נלקחה על ידי נהג אחר.",
                                                 cancellationToken: cancellationToken
                                            );
@@ -177,7 +177,7 @@ namespace BL.Services.Drivers.Functionalities
 
                                 await botClient.SendTextMessageAsync(
                                     chatId: chatId,
-                                    text: "הודעה נשלחה ללקוח",
+                                    text: "הודעה נשלחה ללקוח📲, אנא המתן.........",
                                     cancellationToken: cancellationToken
                                 );
 

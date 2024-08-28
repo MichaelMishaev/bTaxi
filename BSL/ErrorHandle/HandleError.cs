@@ -1,6 +1,7 @@
 ﻿using BL.Helpers.logger;
 using System;
 using System.IO;
+using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using Telegram.Bot;
@@ -25,11 +26,17 @@ namespace telegramB.ErrorHandle
                     _ => exception.ToString()
                 };
 
-                Console.WriteLine(errorMessage);
+                string fullErrorMessage = $"{errorMessage} ------- {exception.StackTrace}";
+                if (exception.Message.Contains("Request timed out"))
+                {
+                    Console.WriteLine("simple timeout");
+                    Console.WriteLine(exception.StackTrace);
+                    return;
+                }
 
                 // Log the error to a file or monitoring system if needed
-                LogError(errorMessage);
-
+                LogError(fullErrorMessage);
+                ConsolePrintService.exceptionErrorPrint(errorMessage);
                 // Attempt to handle specific exceptions or general exceptions here
                 if (exception is ApiRequestException apiEx && apiEx.ErrorCode == 429) // Too Many Requests
                 {
@@ -59,7 +66,7 @@ namespace telegramB.ErrorHandle
         {
             try
             {
-                File.AppendAllText(logFilePath, $"{DateTime.Now}: {Environment.NewLine}{errorMessage}{Environment.NewLine}");
+                File.AppendAllText(logFilePath, $"{DateTime.Now}: {Environment.NewLine}{Environment.NewLine}{errorMessage}{Environment.NewLine}");
             }
             catch (Exception ex)
             {

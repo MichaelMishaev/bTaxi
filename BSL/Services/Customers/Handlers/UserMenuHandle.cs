@@ -342,17 +342,18 @@ namespace BL.Services.Customers.Functions
                         //SessionManager.SetSessionData(chatId, "UserState", userState);
 
                         await botClient.SendTextMessageAsync(
-                            chatId: chatId,
-                            text: "רק רגע,  מחשב מחיר מונית רגילה......",
-                            cancellationToken: cancellationToken
-                        );
-                        await botClient.SendTextMessageAsync(
                                 chatId: chatId,
-                                text: @"* מרחק ומחיר משוערך יכול להיות שגוי, אנחנו עובדים על זה  🖥 *", // Surround text with asterisks (*)
+                                text: @"* מרחק ומחיר משוערך הינם בגדר הערכה בלבד  👀 \.*",
                                 parseMode: ParseMode.MarkdownV2, // Specify MarkdownV2 parsing
                                 cancellationToken: cancellationToken
                             );
-                        await _userRepository.UpdateUserPhoneNomberAsync(chatId,input);
+
+                        await botClient.SendTextMessageAsync(
+                                chatId: chatId,
+                                text: "רק רגע,  מחשב מחיר מונית רגילה......",
+                                cancellationToken: cancellationToken
+                            );
+                        await _userRepository.UpdateUserPhoneNomberAsync(chatId, input);
                         // Display order summary with confirmation buttons
                         var res = await DisplayAndSubmitOrder.DisplayOrderSummary(chatId, botClient, userOrder, cancellationToken);
 
@@ -450,11 +451,11 @@ namespace BL.Services.Customers.Functions
 
         private static string GetOrderSummary(UserOrder userOrder)
         {
-            return $"סיכום ההזמנה שלך:\n" +
-                   $"נקודת איסוף: {userOrder.FromAddress.GetFormattedAddress()}\n" +
-                   $"יעד: {userOrder.ToAddress.GetFormattedAddress()}\n" +
-                   $"מחיר מוצע: {userOrder.BidAmount:F2} ₪\n" +
-                   $"מספר טלפון: {userOrder.PhoneNumber}\n" +
+            return $"סיכום ההזמנה שלך ⚖️ :\n" +
+                   $"📍 נקודת איסוף: {userOrder.FromAddress.GetFormattedAddress()}\n" +
+                   $"📍 יעד: {userOrder.ToAddress.GetFormattedAddress()}\n" +
+                   $"🧮 מחיר מוצע: {userOrder.BidAmount:F2} ₪\n" +
+                   $"📱 מספר טלפון: {userOrder.PhoneNumber}\n" +
                    $"הערות: {userOrder.Remarks ?? "לא"}";
         }
     }

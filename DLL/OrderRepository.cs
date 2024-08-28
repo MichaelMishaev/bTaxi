@@ -669,7 +669,7 @@ namespace DAL
 
         public async Task CloseOrderAsync(int orderId)
         {
-            Console.WriteLine($"run CloseOrderAsync {orderId}");
+            Console.WriteLine($"CloseOrderAsync, Order:  {orderId} closed");
             var query = "UPDATE `order` SET `isClosed` = 1, `closeDate` = @closeDate WHERE `id` = @orderId";
             using (var connection = await _context.GetOpenConnectionAsync())
             {
@@ -755,6 +755,40 @@ namespace DAL
                     using (var command = new MySqlCommand(query, connection))
                     {
                         command.Parameters.AddWithValue("@chatId", bidChatId);
+
+                        var result = await command.ExecuteScalarAsync();
+                        return result == DBNull.Value ? (long?)null : Convert.ToInt64(result);
+                    }
+                }
+            }
+            catch (MySqlException ex)
+            {
+                Console.WriteLine($"MySQL error: {ex.Message}");
+                throw;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"General error: {ex.Message}");
+                throw;
+            }
+        }
+
+        public async Task<long?> GetDriverIdByBidIdAsync(int  bidId)
+        {
+            string query = @"
+            SELECT driverId 
+            FROM bids 
+            WHERE Id = @bidId 
+                   AND driverId IS NOT NULL
+            LIMIT 1";
+
+            try
+            {
+                using (var connection = await _context.GetOpenConnectionAsync())
+                {
+                    using (var command = new MySqlCommand(query, connection))
+                    {
+                        command.Parameters.AddWithValue("@bidId", bidId);
 
                         var result = await command.ExecuteScalarAsync();
                         return result == DBNull.Value ? (long?)null : Convert.ToInt64(result);

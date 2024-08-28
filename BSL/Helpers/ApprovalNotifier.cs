@@ -1,4 +1,5 @@
-﻿using DAL;
+﻿using BL.Helpers.logger;
+using DAL;
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
@@ -36,10 +37,11 @@ namespace BL.Helpers
                 bool isApproved = await _driverRepository.CheckUserStatusAsync(userId);
                 if (isApproved)
                 {
+                    ConsolePrintService.CheckPointMessage($"Driver {userId} been approved, message sent");
+
                     await _botClient.SendTextMessageAsync(userId, "ההרשמה עברה בהצלחה, הינך יכול להתחיל לקבל הזמנות");
                     await BotDriversResponseService.SendStartOrdersMenuAsync(_botClient, userId, _cancellationToken);
-                    Console.WriteLine($"Driver {userId} been approved, message sent");
-                    DeleteUserChatId(userId, UserChatIdsFilePath);
+                    DeleteUserChatId(userId, UserChatIdsFilePath);//delete from file
                     
                 }
             }
@@ -53,9 +55,9 @@ namespace BL.Helpers
 
         private Dictionary<string, long> LoadUserChatIds(string filePath)
         {
-            if (System.IO.File.Exists(filePath))
+            if (File.Exists(filePath))
             {
-                var json = System.IO.File.ReadAllText(filePath);
+                var json = File.ReadAllText(filePath);
                 return JsonConvert.DeserializeObject<Dictionary<string, long>>(json);
             }
             return new Dictionary<string, long>();

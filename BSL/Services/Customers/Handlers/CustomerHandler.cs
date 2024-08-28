@@ -16,6 +16,7 @@ using telegramB.Objects;
 using telegramB;
 using Telegram.Bot;
 using Telegram.Bot.Types;
+using BL.Helpers.logger;
 
 namespace BL.Services.Customers.Handlers
 {
@@ -241,11 +242,28 @@ namespace BL.Services.Customers.Handlers
 
                 else if (callbackData == "enter_bid" && await _sessionManager.GetSessionData<string>(chatId, "UserState") == "awaiting_bid")
                 {
+                    //callbackQuery.Message.Text
+
+                    await botClient.SendTextMessageAsync(
+                        chatId: chatId,
+                        text: callbackQuery.Message.Text,
+                        cancellationToken: cancellationToken
+                    );
+
+                    await botClient.SendTextMessageAsync(
+                                    chatId: chatId,
+                                    text: "<b>----------------------------</b>",
+                                    parseMode: Telegram.Bot.Types.Enums.ParseMode.Html,
+                                    cancellationToken: cancellationToken
+                                );
+
                     await botClient.SendTextMessageAsync(
                         chatId: chatId,
                         text: "הכנס את המחיר שאתה מציע עבור הנסיעה:",
                         cancellationToken: cancellationToken
                     );
+
+                    await botClient.DeleteMessageAsync(chatId, callbackQuery.Message.MessageId, cancellationToken);
                     return; // Break after sending the bid entry prompt
                 }
 
@@ -280,7 +298,8 @@ namespace BL.Services.Customers.Handlers
                     }
                     userOrder.OrderId = userOrder.OrderId == 0 ? userOrder.Id : userOrder.OrderId; 
                     await _sessionManager.SetSessionData(chatId, "UserOrder", userOrder);
-             
+
+                    await botClient.DeleteMessageAsync(chatId, callbackQuery.Message.MessageId, cancellationToken);
 
                     var order = userOrder;
                     string separator = new string('-', 30); // Separator line
@@ -397,6 +416,7 @@ namespace BL.Services.Customers.Handlers
                         await _handleUser.HandleUserInput(chatId, "no", cancellationToken, botClient, userOrder, userState, callbackQuery.Message);
                     }
 
+                    await botClient.DeleteMessageAsync(chatId, callbackQuery.Message.MessageId, cancellationToken); //Delete the 'yes/no message'
                     await _sessionManager.SetSessionData(chatId, "UserOrder", userOrder); // Save session data
                     await _sessionManager.SetSessionData(chatId, "UserState", userState); // Save session data
                 }
@@ -442,11 +462,13 @@ namespace BL.Services.Customers.Handlers
                 }
                 else if (callbackData.StartsWith("rate_"))
                 {
+                    
                     // Extract order ID and rating from callback data
                     var data = callbackData.Split('_');
                     var orderId = int.Parse(data[1]);
                     var rating = int.Parse(data[2]);
 
+                    ConsolePrintService.simpleConsoleMessage($"Rating driver for order: {orderId}");
                     // Save the rating in the database
                     await orderRepository.SaveDriverRatingAsync(orderId, rating);
 
@@ -474,7 +496,7 @@ namespace BL.Services.Customers.Handlers
 
                             // Delete the previous messages (rating buttons and thank you message)
                             await botClient.DeleteMessageAsync(chatId, messageId, cancellationToken);
-                            await botClient.DeleteMessageAsync(chatId, thankYouMessage.MessageId, cancellationToken);
+                            //await botClient.DeleteMessageAsync(chatId, thankYouMessage.MessageId, cancellationToken);
 
                             // Remove state
                             await _sessionManager.RemoveSessionData(chatId, "UserState");
@@ -554,10 +576,17 @@ namespace BL.Services.Customers.Handlers
                    
                     var parts = callbackQuery.Data.Split(':');
                     var orderId = int.Parse(parts[1]);
-                    var driverId = callbackQuery.From.Id;
-                    Console.WriteLine($"Customer excepted order {orderId} , time: {DateTime.Now}");
+                    var driverId = await orderRepository.GetDriverIdByBidIdAsync(int.Parse(parts[2]));
+                        //callbackQuery.From.Id;
+                    ConsolePrintService.CheckPointMessage($"Customer excepted order {orderId} , time: {DateTime.Now} , " +
+                        $"Driver details: {driverId}");
+                    if (driverId == null)
+                    {
+                        ConsolePrintService.exceptionErrorPrint($"For biID: {parts[2]} driver null exception");
+                        return;
+                    }
                     // Update the bid as accepted in the database
-                    await orderRepository.AssignOrderToDriverAsync(orderId, driverId);
+                    await orderRepository.AssignOrderToDriverAsync(orderId, (long)driverId);
 
                     // Retrieve the customer order
                     var customerOrder = await orderRepository.GetOrderByIdAsync(orderId);
@@ -587,7 +616,7 @@ namespace BL.Services.Customers.Handlers
                         cancellationToken: cancellationToken
                     );
                     var localDriverState = $"awaiting_eta:{orderId}"; //************ Comments
-                    await _sessionManager.SetSessionData(driverId, "DriverUserState", localDriverState); //************ Comments
+                    await _sessionManager.SetSessionData((long)driverId, "DriverUserState", localDriverState); //************ Comments
 
                     var cancelOption = MenuMethods.cancelOrder(orderId);
 
@@ -617,9 +646,15 @@ namespace BL.Services.Customers.Handlers
                     // Notify the customer about the accepted bid
                     await TypesManual.botClient.SendTextMessageAsync(
                         chatId: customerOrder.userId,
-                        text: "הצעת המחיר התקבלה. הנהג יקבל את פרטי ההזמנה שלך ויצור איתך קשר בקרוב.",
+                        text: "האישור הועבר לנהג, ממתינים לאישור......",
                         cancellationToken: cancellationToken
                     );
+                    await TypesManual.botClient.SendTextMessageAsync(
+                        chatId: customerOrder.userId,
+                        text: "שימו ❤️, עד שהנהג לא אישר, יכול להיות שתקבלו הצעת מחיר חדשה מנהג אחר.",
+                        cancellationToken: cancellationToken
+                    );
+
 
                     // Optionally update user state or any other necessary actions
                     await _sessionManager.RemoveSessionData(chatId, "UserState"); // Clear session data

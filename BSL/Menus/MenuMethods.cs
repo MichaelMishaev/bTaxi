@@ -22,7 +22,7 @@ namespace telegramB.Menus
                         {
                             new []
                             {
-                                InlineKeyboardButton.WithCallbackData("חפש נסיעה", "order_taxi")
+                                InlineKeyboardButton.WithCallbackData("חפש נסיעה  🚕", "order_taxi")
                             }
                         });
         }

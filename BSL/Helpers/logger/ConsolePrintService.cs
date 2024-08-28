@@ -21,6 +21,16 @@ namespace BL.Helpers.logger
         {
             driverMessages(message);
         }
+        public static void CheckPointMessage(string message)
+        {
+            approvalMassages(message);
+        }
+        public static void simpleConsoleMessage(string message)
+        {
+            simpleMessage(message);
+        }
+
+
         private static void errorPring(string text)
         {
             Console.ForegroundColor = ConsoleColor.Red;
@@ -29,14 +39,31 @@ namespace BL.Helpers.logger
             Console.WriteLine("######################################################################################");
             Console.ResetColor();
         }
-
         private static void driverMessages(string text)
+        {
+            Console.ForegroundColor = ConsoleColor.Cyan;
+            Console.WriteLine("######################################################################################");
+            Console.WriteLine(text);
+            Console.WriteLine("######################################################################################");
+            Console.ResetColor();
+        }
+        private static void approvalMassages(string text)
         {
             Console.ForegroundColor = ConsoleColor.Green;
             Console.WriteLine("######################################################################################");
             Console.WriteLine(text);
             Console.WriteLine("######################################################################################");
             Console.ResetColor();
+        }
+        private static void simpleMessage(string text)
+        {
+            {
+                //Console.ForegroundColor = ConsoleColor.White;
+                Console.WriteLine("######################################################################################");
+                Console.WriteLine(text);
+                Console.WriteLine("######################################################################################");
+                Console.ResetColor();
+            }
         }
     }
 }

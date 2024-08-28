@@ -1,5 +1,6 @@
 ﻿using BL.Helpers;
 using BL.Helpers.FareCalculate;
+using BL.Helpers.logger;
 using BL.Menus;
 using BL.Services.Customers.Functions;
 using BL.Services.Customers.Handlers;
@@ -47,7 +48,7 @@ namespace telegramB
             if (update.Type == UpdateType.Message)
             {
                 var message = update.Message;
-
+                Console.WriteLine($"incoming message: {message?.Text}");
                 if ((message?.Type == MessageType.Text) || (message?.Type == MessageType.Location))
                 {
                     var chatId = message.Chat.Id;
@@ -152,6 +153,7 @@ namespace telegramB
                         //}
                         else
                         {
+                            ConsolePrintService.simpleConsoleMessage($"sent unknown message: {messageText}, User: {chatId} start from scratch");
                             await _sessionManager.RemoveSessionData(chatId, "DriverUserState"); // Clear session data for driver
                             await _sessionManager.RemoveSessionData(chatId, "UserOrder");
                             await botClient.SendTextMessageAsync(
@@ -168,6 +170,7 @@ namespace telegramB
 
             else if (update.Type == UpdateType.CallbackQuery)
             {
+                Console.WriteLine("incoming callback");
                 CustomerHandler customerHandler = new CustomerHandler(_sessionManager);
                 await customerHandler.CallbackHandler(botClient, update, cancellationToken, _handleUser);
             }
