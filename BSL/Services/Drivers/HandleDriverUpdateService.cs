@@ -45,7 +45,7 @@ namespace BL.Services.Drivers
         {
             //var chatId = update.CallbackQuery?.Message.Chat.Id ?? update.Message?.Chat.Id ?? 0;
             var chatId = 0L; // Initialize to 0
-            return;
+            
             // Determine the chatId from the available update type
             if (update.CallbackQuery != null)
             {

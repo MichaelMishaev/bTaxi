@@ -4,7 +4,7 @@ using System.Text;
 
 namespace BL.Helpers.MessageSending
 {
-    internal class SendMessage
+    public class SendMessage
     {
     }
 }
