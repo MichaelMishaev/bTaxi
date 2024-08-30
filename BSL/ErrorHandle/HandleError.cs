@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Telegram.Bot;
 using Telegram.Bot.Exceptions;
+using Telegram.Bot.Types;
 
 namespace telegramB.ErrorHandle
 {
@@ -27,12 +28,29 @@ namespace telegramB.ErrorHandle
                 };
 
                 string fullErrorMessage = $"{errorMessage} ------- {exception.StackTrace}";
+
+
+                await TypesManual.botGudenko.SendTextMessageAsync(
+                   chatId: "-1002194149620",
+                   text: $"########################{DateTime.Now}####################################################",
+                   cancellationToken: cancellationToken
+               );
+
+                await TypesManual.botGudenko.SendTextMessageAsync(
+                   chatId: "-1002194149620",
+                   text: fullErrorMessage,
+                   cancellationToken: cancellationToken
+               );
+
+
                 if (exception.Message.Contains("Request timed out"))
                 {
                     Console.WriteLine("simple timeout");
                     Console.WriteLine(exception.StackTrace);
                     return;
                 }
+
+
 
                 // Log the error to a file or monitoring system if needed
                 LogError(fullErrorMessage);
@@ -48,6 +66,13 @@ namespace telegramB.ErrorHandle
                 {
                     Console.WriteLine("Connection lost. Attempting to reconnect...");
                     await ReconnectAsync(botClient, cancellationToken);
+                }
+                else if (exception.Message.Contains("bot was blocked by the user"))
+                {
+                    // Handle the case where the bot was blocked by the user
+                    Console.WriteLine($"Bot was blocked by user {6}. No further messages will be sent to this user.");
+                   // await ReconnectAsync(botClient, cancellationToken);
+                    // Optionally, remove the user from your database or mark them as inactive
                 }
                 else
                 {
@@ -66,7 +91,7 @@ namespace telegramB.ErrorHandle
         {
             try
             {
-                File.AppendAllText(logFilePath, $"{DateTime.Now}: {Environment.NewLine}{Environment.NewLine}{errorMessage}{Environment.NewLine}");
+                System.IO.File.AppendAllText(logFilePath, $"{DateTime.Now}: {Environment.NewLine}{Environment.NewLine}{errorMessage}{Environment.NewLine}");
             }
             catch (Exception ex)
             {

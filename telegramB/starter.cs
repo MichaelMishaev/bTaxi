@@ -100,7 +100,7 @@ namespace telegramB
 
             var userBot = await TypesManual.botClient.GetMeAsync();
             var driverBot = await TypesManual.botDriver.GetMeAsync();
-            var gudenkoBot = await TypesManual.botDriver.GetMeAsync();
+            var gudenkoBot = await TypesManual.botGudenko.GetMeAsync();
             Console.WriteLine($"Bot @{userBot.Username} is running...");
             Console.WriteLine($"Bot @{driverBot.Username} is running...");
             Console.WriteLine($"Bot @{gudenkoBot.Username} is running...");

@@ -43,7 +43,24 @@ namespace BL.Services.Drivers
 
         public async Task HandleDriverUpdateAsync(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
         {
-            var chatId = update.CallbackQuery?.Message.Chat.Id ?? update.Message?.Chat.Id ?? 0;
+            //var chatId = update.CallbackQuery?.Message.Chat.Id ?? update.Message?.Chat.Id ?? 0;
+            var chatId = 0L; // Initialize to 0
+            return;
+            // Determine the chatId from the available update type
+            if (update.CallbackQuery != null)
+            {
+                chatId = update.CallbackQuery.Message.Chat.Id;
+            }
+            else if (update.Message != null)
+            {
+                chatId = update.Message.Chat.Id;
+            }
+            else
+            {
+                // Log or handle the unexpected update type
+                Console.WriteLine("הוזן תו לא תקין 😞,  יש להתחיל מחדש  /start");
+                return; // Exit early as there's no valid chatId
+            }
             long bidId = 0;
 
             long clientChatId = await _sessionManager.GetClientChatIdForDriver(chatId, bidId) ?? 0;
@@ -51,7 +68,15 @@ namespace BL.Services.Drivers
 
             var driverState = await _sessionManager.GetSessionData<string>(chatId, "DriverUserState");
 
-            bool driverExists = update.CallbackQuery != null
+            if (update.CallbackQuery == null && update.Message == null)
+            {
+                Console.WriteLine("All nulls checkpoint");
+                // Log the issue or handle it appropriately, for example:
+                await botClient.SendTextMessageAsync(chatId, "Received an incomplete update. Please try again.", cancellationToken: cancellationToken);
+                return; // Exit early since we cannot proceed without valid update data.
+            }
+
+            bool driverExists = update?.CallbackQuery != null
                 ? await driverRepository.checkIfDriverExists(update.CallbackQuery.From.Id)
                 : await driverRepository.checkIfDriverExists(update.Message.From.Id);
 
@@ -60,11 +85,7 @@ namespace BL.Services.Drivers
                 : await driverRepository.isApprovedDriver(update.Message.From.Id);
 
 
-            if ((update.CallbackQuery == null) && (update.Message == null))
-            {
-                Console.WriteLine("all nulls checkpoint");
-                return;
-            }
+      
 
             
 
