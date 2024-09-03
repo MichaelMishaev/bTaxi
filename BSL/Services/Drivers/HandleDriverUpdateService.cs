@@ -145,7 +145,34 @@ namespace BL.Services.Drivers
                                 await BotDriversResponseService.SendStartOrdersMenuAsync(TypesManual.botDriver, chatId, cancellationToken);
                                 break;
                             case "/help":
-                                //todo
+                                string welcomeMessage =
+@"ברוכים הבאים ל bDrive!
+דבר ראשון, אנחנו לא גובים שום תשלום על השירות שלנו.
+התשלום אם קיים נסגר בין הנהג בין הלקוח *אבל* אנחנו מספקים
+את הכלי הנוח בשבילכם על מנת להגיע למחיר שיהיה מוסכם בין הצדדים.
+איך זה עובד?
+
+*) הלקוח שולח כתובות: מאיפה.... לאן..... ואת המחיר אותו הוא 
+מוכן לשלם.
+אתם יכולים להתמקח על המחיר, אם הגעתם להסכמה רק אז
+אתם רואים את פרטי הלקוח.
+התשלום מתבצע במזומן או ביט או כל דרך שאתם תבחרו,
+שוב.... אנחנו לא אחראים על התשלום ולא גובים תשלום.
+
+*) האם אנחנו גוזלים פרנסה לנהגי מוניות? לא!
+מי שנוסע במונית, ימשיך לנסוע במונית,
+קהל היעד שלנו אלה אנשים אשר תופסים טרמפים,
+אנשים אשר מעדיפים להישאר בבית כי אין להם איך להגיע,
+אנשים שמעדיפים ללכת ברגל בגלל מחסור בכסף.
+
+לשאלות ותמיכה אפשר בעזרת וואטסאפ,
+יש ללחוץ על: 👇🏻
+
+https://bit.ly/3Z5vObT
+
+לפתיחת הוואטסאפ ☝🏻";
+                                await botClient.SendTextMessageAsync(chatId: chatId, text: welcomeMessage, cancellationToken: cancellationToken);
+
                                 break;
                             default:
                                 await BotDriversResponseService.SendStartOrdersMenuAsync(TypesManual.botDriver, chatId, cancellationToken);

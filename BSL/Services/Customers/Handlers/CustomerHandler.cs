@@ -26,11 +26,11 @@ namespace BL.Services.Customers.Handlers
         DriverRepository driverRepository = new DriverRepository();
         OrderRepository orderRepository = new OrderRepository();
         private readonly SessionManager _sessionManager;
-        private  UpdateTypeMessage _updateTypeMessage;
+        private UpdateTypeMessage _updateTypeMessage;
 
         public CustomerHandler(SessionManager sessionManager)
         {
-             _sessionManager = sessionManager;
+            _sessionManager = sessionManager;
             _updateTypeMessage = new UpdateTypeMessage(_sessionManager); ;
         }
         public async Task CallbackHandler(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken, UserMenuHandle _handleUser)
@@ -54,7 +54,7 @@ namespace BL.Services.Customers.Handlers
                 {
                     var newOrder = new UserOrder();
                     newOrder.CurrentStep = "entering_origin_city"; // Initialize the order and set the current step to entering_origin_city
-                    await  _sessionManager.SetSessionData(chatId, "UserOrder", newOrder); // Save the order in the session
+                    await _sessionManager.SetSessionData(chatId, "UserOrder", newOrder); // Save the order in the session
 
                     bool isPremium = callbackQuery.From.IsPremium ?? false;
                     UserDTO userDTO = new UserDTO
@@ -279,13 +279,13 @@ namespace BL.Services.Customers.Handlers
                     decimal BidAmount = userOrder.BidAmount;
                     //Check if there is bidId
                     //Get the order by bidId cos BidId transfered as contextual param
-                    if (userOrder.BidId >0 && userOrder.FromAddress==null)
+                    if (userOrder.BidId > 0 && userOrder.FromAddress == null)
                     {
                         userOrder = await orderRepository.GetOrderByBidIdAsync(userOrder.BidId);
                         userOrder.BidAmount = BidAmount;
 
                     }
-                     
+
                     // Pass the bidId to the PlaceOrderAsync method
                     else if (userOrder.OrderId == 0 && userOrder.Id == 0)
                     {
@@ -296,7 +296,7 @@ namespace BL.Services.Customers.Handlers
                     {
                         await orderRepository.UpdateOrderWithNewBidAsync(userOrder);
                     }
-                    userOrder.OrderId = userOrder.OrderId == 0 ? userOrder.Id : userOrder.OrderId; 
+                    userOrder.OrderId = userOrder.OrderId == 0 ? userOrder.Id : userOrder.OrderId;
                     await _sessionManager.SetSessionData(chatId, "UserOrder", userOrder);
 
                     await botClient.DeleteMessageAsync(chatId, callbackQuery.Message.MessageId, cancellationToken);
@@ -366,7 +366,7 @@ namespace BL.Services.Customers.Handlers
 
                     }
 
-             
+
 
                     foreach (var driver in workingDrivers)
                     {
@@ -384,7 +384,12 @@ namespace BL.Services.Customers.Handlers
                         }
                         catch (Exception ex)
                         {
-                            Console.WriteLine($"Failed to send message to driver {driver.DriverId}: {ex.Message}");
+
+
+                            string err = "######################   SERVICE WORKS   ################################" +
+                                $"Failed to send message to driver {driver.DriverId}: {ex.Message}";
+                            ConsolePrintService.exceptionErrorPrint("");
+
                         }
                     }
 
@@ -462,7 +467,7 @@ namespace BL.Services.Customers.Handlers
                 }
                 else if (callbackData.StartsWith("rate_"))
                 {
-                    
+
                     // Extract order ID and rating from callback data
                     var data = callbackData.Split('_');
                     var orderId = int.Parse(data[1]);
@@ -573,11 +578,11 @@ namespace BL.Services.Customers.Handlers
                 }
                 else if (callbackQuery.Data.StartsWith("accept_bid:"))
                 {
-                   
+
                     var parts = callbackQuery.Data.Split(':');
                     var orderId = int.Parse(parts[1]);
                     var driverId = await orderRepository.GetDriverIdByBidIdAsync(int.Parse(parts[2]));
-                        //callbackQuery.From.Id;
+                    //callbackQuery.From.Id;
                     ConsolePrintService.CheckPointMessage($"Customer excepted order {orderId} , time: {DateTime.Now} , " +
                         $"Driver details: {driverId}");
                     if (driverId == null)

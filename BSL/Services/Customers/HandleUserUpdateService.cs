@@ -72,12 +72,32 @@ namespace telegramB
                     }
                     else if(messageText == "/help")
                     {
-                        Console.WriteLine("HELPPPP");
-                        await botClient.SendTextMessageAsync(
-                             chatId: chatId,
-                             text: "הכל יהיה בסדר",
-                             cancellationToken: cancellationToken
-                         );
+                        Console.WriteLine("Help pressed");
+                        string welcomeMessage =
+                                        @"ברוכים הבאים ל bTrip! 🚕
+
+                                        אז על מה בעצם מדובר?🧐
+                                        אתם מזינים כתובת מ..... וכתובת ל....
+                                        אנחנו מחשבים את המרחק ומחשבים 
+                                        את המחיר המשוערך של מונית רגילה.
+
+                                        אתם מציעים את המחיר שאתם מוכנים לשלם
+                                        ו.... וזהו! ההצעה שלכם נשלחת לנהגים הפעילים ברגע זה,
+                                        נהג אשר מעוניין שולח לכם את הצעת המחיר שלו,
+                                        אתם יכולים לקחת את ההזמנה או לשלוח הצעה משלכם
+                                        וכך עד שתגיעו להסכמה.
+                                        ברגע שיש הסכמה, אתם רואים את פרטי הנהג והנהג
+                                        רואה את הפרטים שלכם.
+                                        זהו.............
+
+                                        לשאלות\תלונות והצעות לשיפור נשמח לשמוע מכם בוואטסאפ שלנו:
+                                        https://bit.ly/3Z5vObT
+                                        יש ללחוץ על הקישור ☝🏻 והוואטסאפ יפתח כבר על הצאט שלנו.
+                                        עם ישראל חי ומשתדרג 🙌
+                                        🇮🇱🇮🇱🇮🇱🇮🇱🇮🇱🇮🇱🇮🇱🇮🇱🇮🇱🇮🇱🇮🇱🇮🇱🇮🇱🇮🇱🇮🇱🇮🇱🇮🇱🇮🇱🇮🇱";
+
+                        await botClient.SendTextMessageAsync(chatId: chatId, text: welcomeMessage, cancellationToken: cancellationToken);
+
                     }
                     else if (messageText == "/test")
                     {

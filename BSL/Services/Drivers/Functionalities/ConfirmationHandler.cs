@@ -9,6 +9,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Telegram.Bot;
 using Telegram.Bot.Types;
+using telegramB;
 using telegramB.Services;
 
 namespace BL.Services.Drivers.Functionalities
@@ -50,6 +51,11 @@ namespace BL.Services.Drivers.Functionalities
 
             await BotDriversResponseService.SendTextMessageAsync(botClient, chatId, "תודה! הפרטים שלך נשמרו בהצלחה.", cancellationToken);
             await BotDriversResponseService.SendTextMessageAsync(botClient, chatId, "יש להמתין לאימות הפרטים 🗽 ,\nהתהליך יקח עד 24 שעות ⌛️.\nאבל כמובן שננסה כמה שיותר מהר, הודעה תישלח בסיום.",  cancellationToken);
+            await TypesManual.botGudenko.SendTextMessageAsync(
+                               chatId: "-1002194149620",
+                               text: $"נהג חדש נרשם {DateTime.Now}",
+                               cancellationToken: cancellationToken
+                            );
             //await BotDriversResponseService.SendMainMenuAsync(botClient, chatId, cancellationToken);
 
             Console.ForegroundColor = ConsoleColor.Yellow;
