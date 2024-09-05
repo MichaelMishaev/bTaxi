@@ -59,7 +59,7 @@ namespace telegramB.Services
 
         public static async Task StartRegistration(ITelegramBotClient botClient, long chatId, int messageId, CancellationToken cancellationToken)
         {
-            Console.WriteLine($"Driver {chatId} started regestration");
+            Console.WriteLine($"Driver {chatId} started regestration: {DateTime.Now}");
             AddOrUpdateDriverRegistration(chatId, new DriverDTO());
             SetUserState(chatId, keywords.AwaitingNameState);
 
@@ -67,31 +67,31 @@ namespace telegramB.Services
             await _sessionManager.SetSessionData(chatId, "DriverUserState", keywords.AwaitingNameState);
 
             string welcomeMessage = 
-@"ברוכים הבאים ל bDrive!
-דבר ראשון, אנחנו לא גובים שום תשלום על השירות שלנו.
-התשלום אם קיים נסגר בין הנהג בין הלקוח *אבל* אנחנו מספקים
-את הכלי הנוח בשבילכם על מנת להגיע למחיר שיהיה מוסכם בין הצדדים.
-איך זה עובד?
+                                    @"ברוכים הבאים ל bDrive!
+                                    דבר ראשון, אנחנו לא גובים שום תשלום על השירות שלנו.
+                                    התשלום אם קיים נסגר בין הנהג בין הלקוח *אבל* אנחנו מספקים
+                                    את הכלי הנוח בשבילכם על מנת להגיע למחיר שיהיה מוסכם בין הצדדים.
+                                    איך זה עובד?
 
-*) הלקוח שולח כתובות: מאיפה.... לאן..... ואת המחיר אותו הוא 
-מוכן לשלם.
-אתם יכולים להתמקח על המחיר, אם הגעתם להסכמה רק אז
-אתם רואים את פרטי הלקוח.
-התשלום מתבצע במזומן או ביט או כל דרך שאתם תבחרו,
-שוב.... אנחנו לא אחראים על התשלום ולא גובים תשלום.
+                                    *) הלקוח שולח כתובות: מאיפה.... לאן..... ואת המחיר אותו הוא 
+                                    מוכן לשלם.
+                                    אתם יכולים להתמקח על המחיר, אם הגעתם להסכמה רק אז
+                                    אתם רואים את פרטי הלקוח.
+                                    התשלום מתבצע במזומן או ביט או כל דרך שאתם תבחרו,
+                                    שוב.... אנחנו לא אחראים על התשלום ולא גובים תשלום.
 
-*) האם אנחנו גוזלים פרנסה לנהגי מוניות? לא!
-מי שנוסע במונית, ימשיך לנסוע במונית,
-קהל היעד שלנו אלה אנשים אשר תופסים טרמפים,
-אנשים אשר מעדיפים להישאר בבית כי אין להם איך להגיע,
-אנשים שמעדיפים ללכת ברגל בגלל מחסור בכסף.
+                                    *) האם אנחנו גוזלים פרנסה לנהגי מוניות? לא!
+                                    מי שנוסע במונית, ימשיך לנסוע במונית,
+                                    קהל היעד שלנו אלה אנשים אשר תופסים טרמפים,
+                                    אנשים אשר מעדיפים להישאר בבית כי אין להם איך להגיע,
+                                    אנשים שמעדיפים ללכת ברגל בגלל מחסור בכסף.
 
-לשאלות ותמיכה אפשר בעזרת וואטסאפ,
-יש ללחוץ על: 👇🏻
+                                    לשאלות ותמיכה אפשר בעזרת וואטסאפ,
+                                    יש ללחוץ על: 👇🏻
 
-https://bit.ly/3Z5vObT
+                                    https://bit.ly/3Z5vObT
 
-לפתיחת הוואטסאפ ☝🏻";
+                                    לפתיחת הוואטסאפ ☝🏻";
             await botClient.SendTextMessageAsync(chatId: chatId, text: welcomeMessage, cancellationToken: cancellationToken);
 
 
