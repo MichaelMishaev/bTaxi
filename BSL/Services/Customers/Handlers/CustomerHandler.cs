@@ -607,7 +607,7 @@ namespace BL.Services.Customers.Handlers
                         return;
                     }
                     // Update the bid as accepted in the database
-                    await orderRepository.AssignOrderToDriverAsync(orderId, (long)driverId);
+           //         await orderRepository.AssignOrderToDriverAsync(orderId, (long)driverId);
 
                     // Retrieve the customer order
                     var customerOrder = await orderRepository.GetOrderByIdAsync(orderId);
