@@ -48,6 +48,8 @@ namespace telegramB
             if (update.Type == UpdateType.Message)
             {
                 var message = update.Message;
+                ConsolePrintService.CheckPointMessage("");
+
                 Console.WriteLine($"incoming message: {message?.Text}");
                 if ((message?.Type == MessageType.Text) || (message?.Type == MessageType.Location))
                 {
@@ -68,33 +70,67 @@ namespace telegramB
                         await _sessionManager.RemoveSessionData(chatId, "UserOrder");
                         await _sessionManager.RemoveSessionData(chatId, "DriverUserState");
 
+
+                        await TypesManual.botGudenko.SendTextMessageAsync(
+                                           chatId: chatId,
+                                           text: $"משתמש חדש נרשם למערכת  {DateTime.Now}",
+                                           cancellationToken: cancellationToken
+                                       );
+
+
+                        string welcomeMessage = @"ברוכים הבאים לבוט הנסיעות של אריאל והסביבה 🙌
+
+אז מה קורה כאן ואיך זה עובד?
+בתחילת התהליך אתם מזינים עיר, רחוב ומספר בית מאיפה לאסוף אתכם או כל בן אדם אחר 👀
+
+אחר כך אתם מזינים לאן אתם צריכים (עיר, רחוב ומספר בית).
+המערכת מחשבת את המרחק ואת המחיר *המשוער* של מונית רגילה.
+
+שימו לב: המרחק והמחיר יכולים להיות לא מדויקים וניתנים רק כהמלצה.
+
+בשלב הבא, אתם מזינים את המחיר שאתם מוכנים להציע עבור הנסיעה ו.... וזהו! 😏
+לוחצים על כפתור 'שלח' והנהגים הפעילים מקבלים את ההצעה שלכם לנסיעה.
+
+כל נהג יכול לשלוח מחיר נגדי ואתם רשאים לנהל מיקוח על המחיר דרך הבוט,
+מבלי שאתם יודעים את פרטי הנהג ומבלי שהנהג מודע לפרטים שלכם.
+
+רק כשאתם מגיעים להסכמה, הנהג יקבל את הפרטים שלכם (מספר טלפון)
+ואתם את פרטי הנהג. 🚕
+
+שימו לב! 
+לתלונות, טענות והצעות לשיפור יש לכתוב לוואטסאפ:
+       👈 https://bit.ly/3Z5vObT
+פשוט תלחצו על הקישור והוואטסאפ יפתח ☝🏻";
+
+
+                        await botClient.SendTextMessageAsync(chatId: chatId, text: welcomeMessage, cancellationToken: cancellationToken);
                         await MainMenuService.DisplayMainMenu(botClient, chatId, cancellationToken);
                     }
                     else if(messageText == "/help")
                     {
                         Console.WriteLine("Help pressed");
                         string welcomeMessage =
-                                        @"ברוכים הבאים ל bTrip! 🚕
+@"ברוכים הבאים ל bTrip! 🚕
 
-                                        אז על מה בעצם מדובר?🧐
-                                        אתם מזינים כתובת מ..... וכתובת ל....
-                                        אנחנו מחשבים את המרחק ומחשבים 
-                                        את המחיר המשוערך של מונית רגילה.
+אז על מה בעצם מדובר?🧐
+אתם מזינים כתובת מ..... וכתובת ל....
+אנחנו מחשבים את המרחק ומחשבים 
+את המחיר המשוערך של מונית רגילה.
 
-                                        אתם מציעים את המחיר שאתם מוכנים לשלם
-                                        ו.... וזהו! ההצעה שלכם נשלחת לנהגים הפעילים ברגע זה,
-                                        נהג אשר מעוניין שולח לכם את הצעת המחיר שלו,
-                                        אתם יכולים לקחת את ההזמנה או לשלוח הצעה משלכם
-                                        וכך עד שתגיעו להסכמה.
-                                        ברגע שיש הסכמה, אתם רואים את פרטי הנהג והנהג
-                                        רואה את הפרטים שלכם.
-                                        זהו.............
+אתם מציעים את המחיר שאתם מוכנים לשלם
+ו.... וזהו! ההצעה שלכם נשלחת לנהגים הפעילים ברגע זה,
+נהג אשר מעוניין שולח לכם את הצעת המחיר שלו,
+אתם יכולים לקחת את ההזמנה או לשלוח הצעה משלכם
+וכך עד שתגיעו להסכמה.
+ברגע שיש הסכמה, אתם רואים את פרטי הנהג והנהג
+רואה את הפרטים שלכם.
+זהו.............
 
-                                        לשאלות\תלונות והצעות לשיפור נשמח לשמוע מכם בוואטסאפ שלנו:
-                                        https://bit.ly/3Z5vObT
-                                        יש ללחוץ על הקישור ☝🏻 והוואטסאפ יפתח כבר על הצאט שלנו.
-                                        עם ישראל חי ומשתדרג 🙌
-                                        🇮🇱🇮🇱🇮🇱🇮🇱🇮🇱🇮🇱🇮🇱🇮🇱🇮🇱🇮🇱🇮🇱🇮🇱🇮🇱🇮🇱🇮🇱🇮🇱🇮🇱🇮🇱🇮🇱";
+לשאלות\תלונות והצעות לשיפור נשמח לשמוע מכם בוואטסאפ שלנו:
+https://bit.ly/3Z5vObT
+יש ללחוץ על הקישור ☝🏻 והוואטסאפ יפתח כבר על הצאט שלנו.
+עם ישראל חי ומשתדרג 🙌
+🇮🇱🇮🇱🇮🇱🇮🇱🇮🇱🇮🇱🇮🇱🇮🇱🇮🇱🇮🇱🇮🇱🇮🇱🇮🇱🇮🇱🇮🇱🇮🇱🇮🇱🇮🇱🇮🇱";
 
                         await botClient.SendTextMessageAsync(chatId: chatId, text: welcomeMessage, cancellationToken: cancellationToken);
 
@@ -122,6 +158,22 @@ namespace telegramB
                         {
                             if (decimal.TryParse(messageText, out decimal bidAmount))
                             {
+                                if (bidAmount > 1000)
+                                {
+                                    await _sessionManager.RemoveSessionData(chatId, "UserState");
+                                    await _sessionManager.RemoveSessionData(chatId, "UserOrder");
+                                    await _sessionManager.RemoveSessionData(chatId, "DriverUserState");
+                                    var mainMenuButtons = MenuMethods.mainMenuButtons();
+
+                                    await botClient.SendTextMessageAsync(
+                                        chatId: chatId,
+                                        text: "משהו פה לא עבד תקין, יש להתחיל מחדש",
+                                        replyMarkup: mainMenuButtons,
+                                        cancellationToken: cancellationToken
+                                    );
+
+                                    return;
+                                }
                                 userOrder.BidAmount = bidAmount;
 
                                 // Insert the customer bid into the bids table and get the bidId
@@ -133,6 +185,13 @@ namespace telegramB
                                 // Set the current step to "awaiting_confirmation" for the order
                                 await orderRepository.UpdateOrderStepAsync(chatId, "awaiting_confirmation");
 
+                                ConsolePrintService.CheckPointMessage("");
+                                await TypesManual.botGudenko.SendTextMessageAsync(
+                                                      chatId: chatId,
+                                                      text: $"משתמש קיבל סיכום הזמנה  {DateTime.Now}",
+                                                      cancellationToken: cancellationToken
+
+                                                  );
                                 var orderSummary = $"סיכום ההזמנה שלך:\n" +
                                                    $"נקודת איסוף: {userOrder.FromAddress.GetFormattedAddress()}\n" +
                                                    $"יעד: {userOrder.ToAddress.GetFormattedAddress()}\n" +
@@ -148,7 +207,7 @@ namespace telegramB
                                     replyMarkup: confirmationButtons,
                                     cancellationToken: cancellationToken
                                 );
-
+                                await Validators.DeleteMessage(botClient, chatId, update.Message.MessageId, cancellationToken);
                                 userState = "awaiting_confirmation";
                                 await _sessionManager.SetSessionData(chatId, "UserOrder", userOrder); // Save session data
                                 await _sessionManager.SetSessionData(chatId, "UserState", userState); // Save session data

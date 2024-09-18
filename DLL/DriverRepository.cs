@@ -170,6 +170,36 @@ namespace DAL
             return isApproved;
         }
 
+        public async Task<bool> UpdateDriverStatusToInactive(long driverId)
+        {
+            bool isUpdated = false;
+            string qry = @$"UPDATE `btrip`.`driver` SET status = 0 WHERE driverId = @driverId";
+
+            using (var connection = await _context.GetOpenConnectionAsync())
+            {
+                using (var command = new MySqlCommand(qry, connection))
+                {
+                    // Add the driverId parameter to avoid SQL injection
+                    command.Parameters.AddWithValue("@driverId", driverId);
+
+                    try
+                    {
+                        // Execute the query and check if any rows were affected
+                        int rowsAffected = await command.ExecuteNonQueryAsync();
+                        isUpdated = rowsAffected > 0; // If rows were updated, return true
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"Error updating driver status: {ex.Message}");
+                        throw;
+                    }
+                }
+            }
+
+            return isUpdated;
+        }
+
+
         public async Task<bool> CheckUserStatusAsync(long userId)
         {
 

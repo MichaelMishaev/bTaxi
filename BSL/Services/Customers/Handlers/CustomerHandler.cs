@@ -17,6 +17,7 @@ using telegramB;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 using BL.Helpers.logger;
+using BL.Helpers.MessageSending;
 
 namespace BL.Services.Customers.Handlers
 {
@@ -27,11 +28,12 @@ namespace BL.Services.Customers.Handlers
         OrderRepository orderRepository = new OrderRepository();
         private readonly SessionManager _sessionManager;
         private UpdateTypeMessage _updateTypeMessage;
-
+        private SendMessage sendMessage = null;
         public CustomerHandler(SessionManager sessionManager)
         {
             _sessionManager = sessionManager;
-            _updateTypeMessage = new UpdateTypeMessage(_sessionManager); ;
+            _updateTypeMessage = new UpdateTypeMessage(_sessionManager);
+             sendMessage = new SendMessage();
         }
         public async Task CallbackHandler(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken, UserMenuHandle _handleUser)
         {
@@ -83,12 +85,19 @@ namespace BL.Services.Customers.Handlers
                         OneTimeKeyboard = true
                     };
 
-                    await botClient.SendTextMessageAsync(
+                    await sendMessage.SafeSendMessageWithReplyMarkupAsync(
+                         botClient,
                         chatId: chatId,
                         text: "הכנס עיר מוצא או שלח את המיקום שלך:",
                         replyMarkup: replyMarkup,
                         cancellationToken: cancellationToken
                     );
+                    //await botClient.SendTextMessageAsync(
+                    //    chatId: chatId,
+                    //    text: "הכנס עיר מוצא או שלח את המיקום שלך:",
+                    //    replyMarkup: replyMarkup,
+                    //    cancellationToken: cancellationToken
+                    //);
 
 
                 }
@@ -263,7 +272,8 @@ namespace BL.Services.Customers.Handlers
                         cancellationToken: cancellationToken
                     );
 
-                    await botClient.DeleteMessageAsync(chatId, callbackQuery.Message.MessageId, cancellationToken);
+                    bool isDeleted = await Validators.DeleteMessage(botClient,chatId, callbackQuery.Message.MessageId, cancellationToken);
+                    //await botClient.DeleteMessageAsync(chatId, callbackQuery.Message.MessageId, cancellationToken);
                     return; // Break after sending the bid entry prompt
                 }
 
@@ -287,7 +297,7 @@ namespace BL.Services.Customers.Handlers
                     }
 
                     // Pass the bidId to the PlaceOrderAsync method
-                    else if (userOrder.OrderId == 0 && userOrder.Id == 0)
+                    else if ((userOrder.OrderId == 0 && userOrder.Id == 0) || userOrder.BidId==0)
                     {
                         userOrder.OrderId = await orderRepository.PlaceOrderAsync(userOrder, userOrder.BidId);
                         //         SessionManager.SetSessionData(chatId, "UserOrder", userOrder);
@@ -299,8 +309,8 @@ namespace BL.Services.Customers.Handlers
                     userOrder.OrderId = userOrder.OrderId == 0 ? userOrder.Id : userOrder.OrderId;
                     await _sessionManager.SetSessionData(chatId, "UserOrder", userOrder);
 
-                    await botClient.DeleteMessageAsync(chatId, callbackQuery.Message.MessageId, cancellationToken);
-
+                    //await botClient.DeleteMessageAsync(chatId, callbackQuery.Message.MessageId, cancellationToken);
+                    bool isDeleted = await Validators.DeleteMessage(botClient, chatId, callbackQuery.Message.MessageId, cancellationToken);
                     var order = userOrder;
                     string separator = new string('-', 30); // Separator line
                     string dateTimeNow = DateTime.Now.ToString("dd/MM/yyyy HH:mm:ss"); // Formatted date-time
@@ -343,22 +353,28 @@ namespace BL.Services.Customers.Handlers
 
                     bool isSentTodriver = false;
                     //check if the driver that gave a new bid is working
+                    
                     foreach (var driver in workingDrivers)
                     {
 
                         string sessionKey = $"{userOrder.OrderId}:driver:{driver.DriverId}";
+
                         sessionDriverChatId = await _sessionManager.GetSessionData<long?>(sessionKey, "DriverChatId");
-                        if (sessionDriverChatId.HasValue)
+                        long? IbidId = await _sessionManager.GetSessionData<long?>(sessionKey, "BidId");
+                        if (IbidId == null) continue;
+                        var driverId = await orderRepository.GetDriverIdByBidIdAsync((int)IbidId);
+                        if (sessionDriverChatId.HasValue && driver.DriverId == driverId.ToString())
                         {
-                            string[] parts = sessionKey.Split(':');
-                            string extractedNumber = parts[2];
+                            //string[] parts = sessionKey.Split(':');
+                            //string extractedNumber = parts[2];
 
                             await TypesManual.botDriver.SendTextMessageAsync(
-                            chatId: extractedNumber,
+                            chatId: driverId,
                             text: orderNotification,
                             replyMarkup: MenuMethods.AcceptbidOrMakeNewMenu(userOrder),
                             cancellationToken: cancellationToken
                         );
+                            _ = await Validators.DeleteMessage(TypesManual.botDriver, (long)driverId, (int)callbackQuery.Message.MessageId, cancellationToken);
                             isSentTodriver = true;
                             await _sessionManager.RemoveSessionData(sessionKey, "DriverChatId");
                             break; // Found the correct driver

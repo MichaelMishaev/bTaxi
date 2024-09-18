@@ -81,6 +81,22 @@ namespace BL.Services.Customers.Functions
                             userOrder.FromAddress = address;
                             userOrder.CurrentStep = "entering_destination_city"; // Move to next step
 
+                            if (address == null)
+                            {
+                                await _sessionManager.RemoveSessionData(chatId, "UserState");
+                                await _sessionManager.RemoveSessionData(chatId, "UserOrder");
+                                await _sessionManager.RemoveSessionData(chatId, "DriverUserState");
+                                var mainMenuButtons = MenuMethods.mainMenuButtons();
+
+                                await botClient.SendTextMessageAsync(
+                                    chatId: chatId,
+                                    text: "  ישנה בעיה באיתור המיקום, יש להתחיל מחדש ולהזין כתובת בצורה ידנית 📍",
+                                    replyMarkup: mainMenuButtons,
+                                    cancellationToken: cancellationToken
+                                );
+                                break;
+                            }
+
 
                             await botClient.SendTextMessageAsync(
                                             chatId: chatId,

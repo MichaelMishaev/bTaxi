@@ -2,6 +2,7 @@
 using Common.DTO;
 using Common.Services;
 using DAL;
+using Microsoft.Extensions.Configuration;
 using System;
 using System.Threading;
 using System.Threading.Tasks;
@@ -20,7 +21,11 @@ namespace BL.Services.Customers.Functions
         private static readonly SessionManager _sessionManager;
         static StepIdentifier()
         {
-            _sessionManager = new SessionManager("localhost:6379");
+            var config = new ConfigurationBuilder()
+                      .SetBasePath(AppContext.BaseDirectory)
+                      .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
+                      .Build();
+            _sessionManager = new SessionManager(config["sessionManager:redis"]);
         }
         public static async Task UserLogic(long chatId, string input, CancellationToken cancellationToken, ITelegramBotClient botClient, UserOrder userOrder, string userState, Message message, GetAddressFromLocationService _getAddressFromLocation = null, bool isDriver = false)
         {

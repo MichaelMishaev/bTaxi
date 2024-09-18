@@ -12,6 +12,7 @@ namespace Common.Services
 
         public RedisCache(string redisConnectionString)
         {
+            //redisConnectionString = "98.81.97.61:6379";
             _redis = ConnectionMultiplexer.Connect(redisConnectionString);
             _database = _redis.GetDatabase();
         }

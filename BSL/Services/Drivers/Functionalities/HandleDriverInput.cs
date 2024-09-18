@@ -26,7 +26,7 @@ namespace BL.Services.Drivers.Functionalities
             _sessionManager = sessionManager;
             notifyCustomer = new NotifyCustomer(_sessionManager);
         }
-        public async Task HandleUserInput(ITelegramBotClient botClient, long chatId, string messageText, CancellationToken cancellationToken)
+        public async Task HandleUserInput(ITelegramBotClient botClient, long chatId, string messageText, CancellationToken cancellationToken, Update update)
         {
             // Retrieve the state from the session storage
             var driverState =  await _sessionManager.GetSessionData<string>(chatId, "DriverUserState"); 
@@ -98,6 +98,20 @@ namespace BL.Services.Drivers.Functionalities
                         // Clear session data after processing
                         await _sessionManager.RemoveSessionData(chatId, "DriverUserState"); //************ Comments
 
+                        bool isOrderTakken = await orderRepository.CheckOrderAssignedAsync(orderId);
+
+                        if (isOrderTakken)
+                        {
+                            await BotDriversResponseService.SendTextMessageAsync(
+                                botClient,
+                                chatId,
+                                "מצטערים, ההזמנה כבר נלקחה על ידי נהג אחר",
+                                cancellationToken,
+                                ParseMode.MarkdownV2
+                            );
+                            break;
+                        }
+
                         bool isAssigned = await orderRepository.AssignOrderToDriverAsync(orderId, chatId);
 
                         if (isAssigned)
@@ -143,8 +157,12 @@ namespace BL.Services.Drivers.Functionalities
                                 // Insert the driver's bid into the database
                                 long bidId = await orderRepository.InsertBidAsync(parentBidID, driverId, driverId, customerChatId.Value, driverBidAmount, true);
 
+                                //Save  in the same session the driverId and the BidId, the bidId used when customer 
+                                //whats to send a new bid AND RETURN IT TO THE SAME DRIVER
                                 string sessionKey = $"{orderIdFromState}:driver:{driverId}";
                                 await _sessionManager.SetSessionData(sessionKey, "DriverChatId", driverId);
+                                await _sessionManager.SetSessionData(sessionKey, "BidId", bidId);
+
 
 
                                 bool isAssigned = await orderRepository.CheckOrderAssignedAsync((int)orderIdFromState);
@@ -174,6 +192,8 @@ namespace BL.Services.Drivers.Functionalities
                                     replyMarkup: bidOptions,
                                     cancellationToken: cancellationToken
                                 );
+
+                                bool res= await Validators.DeleteMessage(TypesManual.botClient, chatId, update.Message.MessageId, cancellationToken);
 
                                 await botClient.SendTextMessageAsync(
                                     chatId: chatId,

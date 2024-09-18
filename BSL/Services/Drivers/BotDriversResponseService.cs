@@ -2,6 +2,7 @@
 using Common.DTO;
 using Common.Services;
 using DAL;
+using Microsoft.Extensions.Configuration;
 using System;
 using System.Collections.Generic;
 using System.Threading;
@@ -23,8 +24,11 @@ namespace telegramB.Services
 
         static BotDriversResponseService()
         {
-            // Initialize SessionManager with your Redis connection string
-            _sessionManager = new SessionManager("localhost:6379");
+            var config = new ConfigurationBuilder()
+                    .SetBasePath(AppContext.BaseDirectory)
+                    .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
+                    .Build();
+            _sessionManager = new SessionManager(config["sessionManager:redis"]);
         }
         // Encapsulate dictionary access
         private static void AddOrUpdateDriverRegistration(long chatId, DriverDTO driver)
@@ -67,31 +71,31 @@ namespace telegramB.Services
             await _sessionManager.SetSessionData(chatId, "DriverUserState", keywords.AwaitingNameState);
 
             string welcomeMessage = 
-                                    @"ברוכים הבאים ל bDrive!
-                                    דבר ראשון, אנחנו לא גובים שום תשלום על השירות שלנו.
-                                    התשלום אם קיים נסגר בין הנהג בין הלקוח *אבל* אנחנו מספקים
-                                    את הכלי הנוח בשבילכם על מנת להגיע למחיר שיהיה מוסכם בין הצדדים.
-                                    איך זה עובד?
+@"ברוכים הבאים ל bDrive!
+דבר ראשון, אנחנו לא גובים שום תשלום על השירות שלנו.
+התשלום אם קיים נסגר בין הנהג בין הלקוח *אבל* אנחנו מספקים
+את הכלי הנוח בשבילכם על מנת להגיע למחיר שיהיה מוסכם בין הצדדים.
+איך זה עובד?
 
-                                    *) הלקוח שולח כתובות: מאיפה.... לאן..... ואת המחיר אותו הוא 
-                                    מוכן לשלם.
-                                    אתם יכולים להתמקח על המחיר, אם הגעתם להסכמה רק אז
-                                    אתם רואים את פרטי הלקוח.
-                                    התשלום מתבצע במזומן או ביט או כל דרך שאתם תבחרו,
-                                    שוב.... אנחנו לא אחראים על התשלום ולא גובים תשלום.
+*) הלקוח שולח כתובות: מאיפה.... לאן..... ואת המחיר אותו הוא 
+מוכן לשלם.
+אתם יכולים להתמקח על המחיר, אם הגעתם להסכמה רק אז
+אתם רואים את פרטי הלקוח.
+התשלום מתבצע במזומן או ביט או כל דרך שאתם תבחרו,
+שוב.... אנחנו לא אחראים על התשלום ולא גובים תשלום.
 
-                                    *) האם אנחנו גוזלים פרנסה לנהגי מוניות? לא!
-                                    מי שנוסע במונית, ימשיך לנסוע במונית,
-                                    קהל היעד שלנו אלה אנשים אשר תופסים טרמפים,
-                                    אנשים אשר מעדיפים להישאר בבית כי אין להם איך להגיע,
-                                    אנשים שמעדיפים ללכת ברגל בגלל מחסור בכסף.
+*) האם אנחנו גוזלים פרנסה לנהגי מוניות? לא!
+מי שנוסע במונית, ימשיך לנסוע במונית,
+קהל היעד שלנו אלה אנשים אשר תופסים טרמפים,
+אנשים אשר מעדיפים להישאר בבית כי אין להם איך להגיע,
+אנשים שמעדיפים ללכת ברגל בגלל מחסור בכסף.
 
-                                    לשאלות ותמיכה אפשר בעזרת וואטסאפ,
-                                    יש ללחוץ על: 👇🏻
+לשאלות ותמיכה אפשר בעזרת וואטסאפ,
+יש ללחוץ על: 👇🏻
 
-                                    https://bit.ly/3Z5vObT
+https://bit.ly/3Z5vObT
 
-                                    לפתיחת הוואטסאפ ☝🏻";
+לפתיחת הוואטסאפ ☝🏻";
             await botClient.SendTextMessageAsync(chatId: chatId, text: welcomeMessage, cancellationToken: cancellationToken);
 
 

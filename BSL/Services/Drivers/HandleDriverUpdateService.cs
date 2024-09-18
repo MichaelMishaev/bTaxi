@@ -112,7 +112,7 @@ namespace BL.Services.Drivers
                     }
                     else if (driverState != null && (messageText != "/get_orders" && messageText != "/no_orders" && messageText != "/help"))
                     {
-                        await handleDriverInput.HandleUserInput(TypesManual.botDriver, chatId, messageText, cancellationToken);
+                        await handleDriverInput.HandleUserInput(TypesManual.botDriver, chatId, messageText, cancellationToken,update);
                     }
                     else if (!driverExists && string.IsNullOrEmpty(driverState))
                     {

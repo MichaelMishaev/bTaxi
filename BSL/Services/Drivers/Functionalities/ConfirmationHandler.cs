@@ -20,7 +20,7 @@ namespace BL.Services.Drivers.Functionalities
         private readonly SessionManager _sessionManager;
         public ConfirmationHandler(SessionManager sessionManager)
         {
-                _sessionManager = sessionManager;
+            _sessionManager = sessionManager;
         }
         public async Task HandleConfirmation(ITelegramBotClient botClient, long chatId, CallbackQuery callbackData, CancellationToken cancellationToken)
         {
@@ -50,7 +50,7 @@ namespace BL.Services.Drivers.Functionalities
             await SaveDriverData(driver);
 
             await BotDriversResponseService.SendTextMessageAsync(botClient, chatId, "תודה! הפרטים שלך נשמרו בהצלחה.", cancellationToken);
-            await BotDriversResponseService.SendTextMessageAsync(botClient, chatId, "יש להמתין לאימות הפרטים 🗽 ,\nהתהליך יקח עד 24 שעות ⌛️.\nאבל כמובן שננסה כמה שיותר מהר, הודעה תישלח בסיום.",  cancellationToken);
+            await BotDriversResponseService.SendTextMessageAsync(botClient, chatId, "יש להמתין לאימות הפרטים 🗽 ,\nהתהליך יקח עד 24 שעות ⌛️.\nאבל כמובן שננסה כמה שיותר מהר, הודעה תישלח בסיום.", cancellationToken);
             await TypesManual.botGudenko.SendTextMessageAsync(
                                chatId: "-1002194149620",
                                text: $"נהג חדש נרשם {DateTime.Now}",
@@ -102,10 +102,10 @@ namespace BL.Services.Drivers.Functionalities
             await driverRepository.InsertDriverAsync(driver);
         }
 
-        private void ClearDriverSessionData(long chatId)
+        private async void ClearDriverSessionData(long chatId)
         {
-            _sessionManager.RemoveSessionData(chatId, "DriverRegistration");
-            _sessionManager.RemoveSessionData(chatId, "DriverUserState");
+            await _sessionManager.RemoveSessionData(chatId, "DriverRegistration");
+            await _sessionManager.RemoveSessionData(chatId, "DriverUserState");
         }
     }
 }

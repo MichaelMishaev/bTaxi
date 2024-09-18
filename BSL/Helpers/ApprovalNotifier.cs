@@ -1,4 +1,5 @@
 ﻿using BL.Helpers.logger;
+using BL.Helpers.MessageSending;
 using DAL;
 using Newtonsoft.Json;
 using System;
@@ -20,11 +21,12 @@ namespace BL.Helpers
         private DriverRepository _driverRepository = new DriverRepository();
         private CancellationToken _cancellationToken;
         private const string UserChatIdsFilePath = "userChatIds.json";
-
+        private SendMessage sendMessage = null;
+        DriverRepository driverRepository = new DriverRepository();
         public ApprovalNotifier(ITelegramBotClient botClient, CancellationToken cancellationToken)
         {
             _botClient = botClient;
-
+            sendMessage = new SendMessage();
             _timer = new Timer(CheckApprovalStatus, null, TimeSpan.Zero, TimeSpan.FromMinutes(2));
             _cancellationToken = cancellationToken;
         }
@@ -37,11 +39,34 @@ namespace BL.Helpers
                 bool isApproved = await _driverRepository.CheckUserStatusAsync(userId);
                 if (isApproved)
                 {
-                    ConsolePrintService.CheckPointMessage($"Driver {userId} been approved, message sent");
+                    
 
-                    await _botClient.SendTextMessageAsync(userId, "ההרשמה עברה בהצלחה, הינך יכול להתחיל לקבל הזמנות");
+                    string formattedMessage = @"ההרשמה עברה בהצלחה, הינך יכול להתחיל לקבל הזמנות.
+תמיד אפשר להפסיק לקבל הזמנות בלחיצה על כפתור ה-Menu 
+בצד שורה זו או לבחור באופציה של 'להפסיק לקבל הזמנות'. ❌
+
+לשאלות ותמיכה אפשר בעזרת וואטסאפ, 🌐
+יש ללחוץ על: 👇🏻
+
+https://bit.ly/3Z5vObT
+
+לפתיחת הוואטסאפ ☝🏻";
+
+                    bool result = await sendMessage.SafeSendMessageAsync(_botClient, userId, formattedMessage, _cancellationToken);
+                    ConsolePrintService.CheckPointMessage($"Driver {userId} been approved, message sent.");
+                    if (!result)
+                    {
+                        DeleteUserChatId(userId, UserChatIdsFilePath);//delete from file
+                        ConsolePrintService.consoleBusinessErrorMessage($"driver {userId} status update to 0");
+                        Console.WriteLine($"deleted driver from panding list: {DateTime.Now}");
+
+                        await driverRepository.UpdateDriverStatusToInactive(userId);
+                        continue;
+                    }
+                    //await _botClient.SendTextMessageAsync(userId, "ההרשמה עברה בהצלחה, הינך יכול להתחיל לקבל הזמנות");
                     await BotDriversResponseService.SendStartOrdersMenuAsync(_botClient, userId, _cancellationToken);
                     DeleteUserChatId(userId, UserChatIdsFilePath);//delete from file
+                    
                     
                 }
             }

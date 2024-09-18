@@ -9,16 +9,26 @@ using Microsoft.Extensions.DependencyInjection;
 using Common.Services;
 using BL.Helpers;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Configuration;
+using static Org.BouncyCastle.Math.EC.ECCurve;
+using System;
 
 namespace telegramB
 {
     class Program
     {
+        static IConfigurationRoot sessionProp ;
         static async Task Main(string[] args)
         {
+            sessionProp = new ConfigurationBuilder()
+                    .SetBasePath(AppContext.BaseDirectory)
+        .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
+                    .Build();
             await root(args);
         }
 
+         
+        //_sessionManager = new SessionManager(sessionProp["sessionManager:redis"]);
         private static async Task root(string[] args)
         {
             var host = CreateHostBuilder(args).Build();
@@ -50,7 +60,7 @@ namespace telegramB
                 .ConfigureServices((hostContext, services) =>
                 {
                     // Register services here
-                    services.AddSingleton<SessionManager>(sp => new SessionManager("localhost:6379"));
+                    services.AddSingleton<SessionManager>(sp => new SessionManager(sessionProp["sessionManager:redis"]));
                     services.AddTransient<DummyOrder>();
                     // Add other services you need
                 });

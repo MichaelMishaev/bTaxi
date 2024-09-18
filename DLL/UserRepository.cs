@@ -80,7 +80,8 @@ namespace DAL
             }
             catch (MySqlException ex)
             {
-                Console.WriteLine($"error in: UpdateUserPhoneNomberAsync");
+                Console.WriteLine($"error in: UpdateUserPhoneNomberAsync at:  {DateTime.Now}");
+                Console.WriteLine($"query is: UPDATE btrip.user SET phoneNumber = {phoneNumber} where userId = {userChatId}  AND phoneNumber IS NULL" );
                 Console.WriteLine($"MySQL error: {ex.Message}");
                 
             }

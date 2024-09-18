@@ -1,6 +1,7 @@
 ﻿using BL.Helpers;
 using BL.Helpers.FareCalculate;
 using Common.Services;
+using Microsoft.Extensions.Configuration;
 using System;
 using System.Collections.Generic;
 using System.Text;
@@ -19,7 +20,14 @@ namespace telegramB.Helpers
 
         static DisplayAndSubmitOrder()
         {
-            _sessionManager = new SessionManager("localhost:6379");
+            var config = new ConfigurationBuilder()
+                        .SetBasePath(AppContext.BaseDirectory)
+                        .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
+                        .Build();
+
+            
+
+            _sessionManager = new SessionManager(config["sessionManager:redis"]);
         }
         public static async Task<bool> DisplayOrderSummary(long chatId, ITelegramBotClient botClient, UserOrder userOrder, CancellationToken cancellationToken)
         {

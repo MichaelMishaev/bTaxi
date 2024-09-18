@@ -70,7 +70,7 @@ namespace telegramB.ErrorHandle
                 else if (exception.Message.Contains("bot was blocked by the user"))
                 {
                     // Handle the case where the bot was blocked by the user
-                    Console.WriteLine($"Bot was blocked by user {6}. No further messages will be sent to this user.");
+                    Console.WriteLine($"Bot was blocked by user {botClient}. No further messages will be sent to this user.");
                    // await ReconnectAsync(botClient, cancellationToken);
                     // Optionally, remove the user from your database or mark them as inactive
                 }
