@@ -35,10 +35,21 @@ namespace BL.Helpers
                 isDeleted = true;
 
             }
-            catch (Telegram.Bot.Exceptions.ApiRequestException ex) when (ex.Message.Contains("message to delete not found") || ex.Message.Contains("chat not found"))
+            catch (Telegram.Bot.Exceptions.ApiRequestException ex)
             {
-                // Log the exception or handle it as needed
-                Console.WriteLine($"Message or chat not found. Unable to delete message {MessageId} in chat {chatId}, date: {DateTime.Now}.");
+                // Check if the message exists and handle specific cases
+                if (ex.Message != null &&
+                    (ex.Message.Contains("message to delete not found") || ex.Message.Contains("chat not found")))
+                {
+                    // Log the exception or handle it as needed
+                    Console.WriteLine($"Message or chat not found. Unable to delete message {MessageId} in chat {chatId}, date: {DateTime.Now}.");
+                }
+                else
+                {
+                    // Handle other cases of ApiRequestException, or rethrow the exception
+                    Console.WriteLine($"Unexpected error: {ex.Message}");
+                    
+                }
             }
 
 

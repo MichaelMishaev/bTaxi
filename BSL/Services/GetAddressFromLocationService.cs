@@ -13,44 +13,44 @@ namespace telegramB.Services
     {
         public async Task<AddressDTO> GetAddressFromLocationAsync(double latitude, double longitude)
         {
+            string url = $"https://nominatim.openstreetmap.org/reverse?lat={latitude}&lon={longitude}&format=json&addressdetails=1";
             using (HttpClient client = new HttpClient())
             {
-                string requestUri = $"https://maps.googleapis.com/maps/api/geocode/json?latlng={latitude},{longitude}&key={TypesManual.GeocodingApiKey}";
-                HttpResponseMessage response = await client.GetAsync(requestUri);
+                client.DefaultRequestHeaders.UserAgent.TryParseAdd("Mozilla/5.0 (compatible; AcmeInc/1.0)");  // Required by Nominatim
 
+                HttpResponseMessage response = await client.GetAsync(url);
                 if (response.IsSuccessStatusCode)
                 {
-                    string responseContent = await response.Content.ReadAsStringAsync();
-                    JObject jsonResponse = JObject.Parse(responseContent);
-                    JArray results = (JArray)jsonResponse["results"];
-                    if (results != null && results.Count > 0)
+                    string jsonResponse = await response.Content.ReadAsStringAsync();
+                    JObject json = JObject.Parse(jsonResponse);
+
+                    // Nominatim uses a different structure than Google Maps. Let's extract the components
+                    var address = json["address"] as JObject;
+                    if (address != null)
                     {
-                        var addressComponents = results[0]["address_components"] as JArray;
-                        if (addressComponents != null)
+                        // Extracting city
+                        string city = address["city"]?.ToString() ??
+                                      address["town"]?.ToString() ??
+                                      address["village"]?.ToString() ??
+                                      address["county"]?.ToString() ??
+                                      "Unknown City";
+
+                        // Extracting street
+                        string street = address["road"]?.ToString() ?? "Unknown Street";
+
+                        // Extracting street number
+                        int streetNumber = int.TryParse(address["house_number"]?.ToString(), out int number) ? number : 0;
+
+                        // Returning the formatted AddressDTO object
+                        return new AddressDTO
                         {
-                            string city = addressComponents
-                                .FirstOrDefault(c => ((JArray)c["types"]).Any(t => t.ToString() == "locality" || t.ToString() == "administrative_area_level_1" || t.ToString() == "administrative_area_level_2"))?["long_name"]?.ToString() ?? "Unknown City";
-
-                            string street = addressComponents
-                                .FirstOrDefault(c => ((JArray)c["types"]).Any(t => t.ToString() == "route"))?["long_name"]?.ToString() ?? "Unknown Street";
-
-                            int streetNumber = int.TryParse(addressComponents
-                                .FirstOrDefault(c => ((JArray)c["types"]).Any(t => t.ToString() == "street_number"))?["long_name"]?.ToString(), out int number) ? number : 0;
-
-                            return new AddressDTO
-                            {
-                                City = city,
-                                Street = street,
-                                StreetNumber = streetNumber
-                            };
-                        }
+                            City = city,
+                            Street = street,
+                            StreetNumber = streetNumber
+                        };
                     }
-                    return null;
                 }
-                else
-                {
-                    return null;
-                }
+                return null;
             }
         }
 

@@ -773,10 +773,10 @@ namespace DAL
             }
         }
 
-        public async Task<long?> GetDriverIdByBidIdAsync(int  bidId)
+        public async Task<(long? driverId, decimal driverBid)> GetDriverIdByBidIdAsync(int  bidId)
         {
             string query = @"
-            SELECT driverId 
+            SELECT driverId , driverBid
             FROM bids 
             WHERE Id = @bidId 
                    AND driverId IS NOT NULL
@@ -790,20 +790,34 @@ namespace DAL
                     {
                         command.Parameters.AddWithValue("@bidId", bidId);
 
-                        var result = await command.ExecuteScalarAsync();
-                        return result == DBNull.Value ? (long?)null : Convert.ToInt64(result);
+                        using (var reader = await command.ExecuteReaderAsync())
+                        {
+                            if (await reader.ReadAsync())
+                            {
+                                long? driverId = reader.IsDBNull(0) ? (long?)null : reader.GetInt64(0);
+                                decimal driverBid = reader.IsDBNull(1) ? 0 : reader.GetDecimal(1);
+
+                                return (driverId, driverBid); // Tuple with driverId and driverBid
+                            }
+                            else
+                            {
+                                return (null, 0); // Return default values if no data is found
+                            }
+                        }
                     }
                 }
             }
             catch (MySqlException ex)
             {
                 Console.WriteLine($"MySQL error: {ex.Message}");
-                throw;
+                return (null, 0); 
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"General error: {ex.Message}");
-                throw;
+                return (null, 0); 
+
+
             }
         }
 

@@ -23,8 +23,15 @@ namespace BL.Helpers
         private readonly SessionManager _sessionManager;
         public LocationService(SessionManager sessionManager)
         {
-            _httpClient = new HttpClient();
+            var handler = new HttpClientHandler
+            {
+                ServerCertificateCustomValidationCallback = (sender, cert, chain, sslPolicyErrors) => true
+            };
+
+            // Initialize HttpClient with the custom handler
+            _httpClient = new HttpClient(handler);
             _httpClient.DefaultRequestHeaders.Add("User-Agent", "IsraelDistanceCalculator/1.0");
+
             _sessionManager = sessionManager;
         }
 

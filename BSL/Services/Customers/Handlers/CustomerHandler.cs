@@ -353,7 +353,16 @@ namespace BL.Services.Customers.Handlers
 
                     bool isSentTodriver = false;
                     //check if the driver that gave a new bid is working
-                    
+
+                    string orderNotificationForBid = $"{separator}\n" +
+                                $"הודעה חדשה התקבלה בתאריך: {dateTimeNow}\n\n" + // Add formatted date-time
+                                $"הזמנה חדשה התקבלה!\n" +
+                                $"מ: {order.FromAddress.GetFormattedAddress()}\n" +
+                                $"אל: {order.ToAddress.GetFormattedAddress()}\n" +
+                                 $"מחיר: {order.BidAmount:F2} ₪\n" +  // Updated to show bid amount
+                                $"מספר טלפון: {order.PhoneNumber}\n" +
+                                $"הערות: {order.Remarks}";
+
                     foreach (var driver in workingDrivers)
                     {
 
@@ -362,11 +371,19 @@ namespace BL.Services.Customers.Handlers
                         sessionDriverChatId = await _sessionManager.GetSessionData<long?>(sessionKey, "DriverChatId");
                         long? IbidId = await _sessionManager.GetSessionData<long?>(sessionKey, "BidId");
                         if (IbidId == null) continue;
-                        var driverId = await orderRepository.GetDriverIdByBidIdAsync((int)IbidId);
+                        var (driverId, driverBid) = await orderRepository.GetDriverIdByBidIdAsync((int)IbidId);
                         if (sessionDriverChatId.HasValue && driver.DriverId == driverId.ToString())
                         {
-                            //string[] parts = sessionKey.Split(':');
-                            //string extractedNumber = parts[2];
+                            orderNotificationForBid = $"{separator}\n" +
+                                    $"הודעה חדשה התקבלה בתאריך: {dateTimeNow}\n\n" + // Add formatted date-time
+                                    $"הזמנה חדשה התקבלה!\n" +
+                                    $"מ: {order.FromAddress.GetFormattedAddress()}\n" +
+                                    $"אל: {order.ToAddress.GetFormattedAddress()}\n" +
+                                     $"מחיר: {driverBid:F2} ₪\n" +  // Updated to show bid amount
+                                    $"מספר טלפון: {order.PhoneNumber}\n" +
+                                    $"הערות: {order.Remarks}";
+
+
 
                             await TypesManual.botDriver.SendTextMessageAsync(
                             chatId: driverId,
@@ -597,7 +614,7 @@ namespace BL.Services.Customers.Handlers
 
                     var parts = callbackQuery.Data.Split(':');
                     var orderId = int.Parse(parts[1]);
-                    var driverId = await orderRepository.GetDriverIdByBidIdAsync(int.Parse(parts[2]));
+                    var(driverId, driverBid) = await orderRepository.GetDriverIdByBidIdAsync(int.Parse(parts[2]));
                     //callbackQuery.From.Id;
                     ConsolePrintService.CheckPointMessage($"Customer excepted order {orderId} , time: {DateTime.Now} , " +
                         $"Driver details: {driverId}");
